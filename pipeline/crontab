@@ -1,0 +1,30 @@
+# content-machine — the schedule, for the user that owns the checkout (jens).
+#
+#   crontab pipeline/crontab     install
+#   crontab -l                   check what is installed
+#
+# Every job goes through pipeline/cron.sh, which sets an explicit PATH, cds to
+# the repo, loads .env, takes one lock so no two jobs overlap, logs to
+# ~/logs/<job>-<date>.log, and sends Telegram with the last 20 log lines when a
+# job exits non-zero. Nothing here should ever grow a second responsibility:
+# a new job is a new line and a command, not a shell pipeline in this file.
+#
+# The absolute path below is the one thing to change on another box. cron.sh
+# finds the repo from its own location, so it is the only path written down.
+#
+# CRON_TZ is what the times below are read in (cron 3.0pl1-128 and later).
+# Set the box to the same zone so log filenames and `date` agree with it:
+#   sudo timedatectl set-timezone Europe/Amsterdam
+SHELL=/bin/bash
+CRON_TZ=Europe/Amsterdam
+MAILTO=""
+
+# 02:00 — the nightly run: scan, pick, verify, write, render, qa.
+0 2 * * * /home/jens/content-machine/pipeline/cron.sh nightly node pipeline/run.js pacevector
+
+# 14:00 — the packet: the day's deck to Telegram, TikTok drafts pushed first.
+0 14 * * * /home/jens/content-machine/pipeline/cron.sh packet node pipeline/packet.js pacevector
+
+# 03:00 — the deadman: alert when the nightly left no run row for today. An hour
+# after the run, so a slow night is finished rather than reported dead.
+0 3 * * * /home/jens/content-machine/pipeline/cron.sh deadman node pipeline/deadman.js pacevector

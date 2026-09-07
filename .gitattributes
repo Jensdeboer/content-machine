@@ -1,0 +1,4 @@
+# Shell scripts run on the Linux box. A CRLF checkout makes the shebang
+# unusable there ("bad interpreter: /usr/bin/env bash^M"), so they stay LF
+# whatever platform the checkout happens on.
+*.sh text eol=lf

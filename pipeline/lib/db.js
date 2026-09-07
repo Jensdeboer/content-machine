@@ -143,6 +143,12 @@ class State {
       .run(now(), status, JSON.stringify(summary), runId);
   }
 
+  // The deadman asks whether a run happened at all, newest first.
+  recentRuns(brand, limit = 20) {
+    return this.db.prepare('SELECT id, started_at, finished_at, status FROM runs WHERE brand = ? ORDER BY id DESC LIMIT ?')
+      .all(brand, limit);
+  }
+
   addScanItem(runId, it) {
     this.db.prepare(`INSERT INTO scan_items
       (run_id, feed, tier, url, title, published, screenshot, score, reason, kept, seen_before, created_at)

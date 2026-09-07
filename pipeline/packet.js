@@ -9,13 +9,14 @@
 // sound last. The TikTok drafts are filled by the provider first, so the phone
 // only has to open the app, pick the sound and post.
 //
-// This script only ever SENDS. Reading replies belongs to n8n: two pollers on
-// one bot token silently steal each other's updates, so there is no getUpdates
-// here and there must never be one.
+// This script only ever SENDS. Nothing here reads replies, and nothing here
+// ever should: two pollers on one bot token silently steal each other's
+// updates, so whatever reads them one day must be the only thing that does.
 //
-// Exit code is the interface with n8n. 0 for a packet sent and 0 for a
-// deliberate no-op (kill switch off, nothing approved); non-zero for anything
-// else, always with a Telegram message naming the deck.
+// Exit code is the interface with cron: pipeline/cron.sh alerts on a non-zero
+// exit. 0 for a packet sent and 0 for a deliberate no-op (kill switch off,
+// nothing approved); non-zero for anything else, always with a Telegram message
+// naming the deck.
 const fs = require('fs');
 const path = require('path');
 

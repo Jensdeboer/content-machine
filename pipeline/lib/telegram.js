@@ -5,8 +5,8 @@
 // be the reason a night fails.
 //
 // This module only ever sends. There is no getUpdates here and there must never
-// be one: n8n owns reading replies from the bot, and two pollers on one token
-// silently steal each other's updates.
+// be one: two pollers on one bot token silently steal each other's updates, so
+// whatever ends up reading replies has to be the only thing reading them.
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
