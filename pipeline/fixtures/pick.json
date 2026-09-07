@@ -1,0 +1,50 @@
+{
+  "$fixture": "MODELS_BACKEND=stub only. Two responses, because pick makes two calls: the ideas, then the same-topic check on the survivors.",
+  "responses": [
+    {
+      "ideas": [
+        {
+          "topic": "easy-pace-too-fast",
+          "series": "Running 101",
+          "angle": "Easy runs are meant to feel too slow, and most runners never go slow enough to get the adaptation.",
+          "figures": ["about 2 min/km slower than 5K pace"],
+          "score": 5,
+          "why": "the fundamental most beginners get wrong, and tonight's evidence supports the number"
+        },
+        {
+          "topic": "show-up-on-flat-days",
+          "series": "Mindset",
+          "angle": "Motivation is not the input. A start time and a laid-out kit are, and the run follows.",
+          "figures": [],
+          "score": 5,
+          "why": "habit mechanics with a practical landing, no figure needed"
+        },
+        {
+          "topic": "legs-quit-before-lungs",
+          "series": "Science",
+          "angle": "Fatigue in a long run is usually fuel and muscle, not your lungs failing you.",
+          "figures": ["about 2,000 kcal of stored glycogen"],
+          "score": 4,
+          "why": "explains a felt experience plainly, and the fuel figure is well sourced"
+        },
+        {
+          "topic": "shoe-mileage-not-a-cliff",
+          "series": "Gear",
+          "angle": "Foam fades gradually. There is no day your shoes stop working, only a range to watch.",
+          "figures": ["around 500 km"],
+          "score": 4,
+          "why": "answers the most asked gear question without naming a brand"
+        },
+        {
+          "topic": "too-fast-too-soon",
+          "series": "Mistakes",
+          "angle": "Banking time early in a race costs more later than it ever saves.",
+          "figures": ["about 10 sec/km banked early"],
+          "score": 4,
+          "why": "a mistake that is understandable, which is the tone the series asks for"
+        }
+      ]
+    },
+    { "duplicates": [] }
+  ]
+}

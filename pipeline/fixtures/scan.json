@@ -1,0 +1,19 @@
+{
+  "$fixture": "MODELS_BACKEND=stub only. Stands in for the scan stage's reply so a run can be exercised offline. Scores the first fourteen items of every chunk; anything past that is recorded as unscored and dropped, which is the same path a real short reply takes.",
+  "items": [
+    { "index": 0, "screenshot": true, "score": 5, "reason": "training-intensity evidence, lands straight on an easy-pace deck" },
+    { "index": 1, "screenshot": true, "score": 4, "reason": "recreational-runner cohort, usable for a mileage progression point" },
+    { "index": 2, "screenshot": false, "score": 2, "reason": "elite-only sample, nothing a 55-minute 10k runner can act on" },
+    { "index": 3, "screenshot": true, "score": 4, "reason": "shoe wear over distance, answers a question the audience actually asks" },
+    { "index": 4, "screenshot": true, "score": 4, "reason": "fuel and glycogen, explains a felt experience with a number" },
+    { "index": 5, "screenshot": false, "score": 3, "reason": "clinical rehab framing, the medical line in banned.md" },
+    { "index": 6, "screenshot": true, "score": 5, "reason": "habit mechanics with a measured effect, practical takeaway" },
+    { "index": 7, "screenshot": true, "score": 4, "reason": "heart-rate drift, a science point that stays plain" },
+    { "index": 8, "screenshot": false, "score": 2, "reason": "supplement trial, banned outright" },
+    { "index": 9, "screenshot": true, "score": 4, "reason": "walk-run to thirty minutes, beginner fundamentals" },
+    { "index": 10, "screenshot": false, "score": 3, "reason": "interesting mechanism, no takeaway that survives to Sunday" },
+    { "index": 11, "screenshot": true, "score": 4, "reason": "pacing error early in a race, a mistakes deck writes itself" },
+    { "index": 12, "screenshot": false, "score": 1, "reason": "single small study presented as settled, fails the numbers rule" },
+    { "index": 13, "screenshot": true, "score": 4, "reason": "what beginners are asking this week, topic input only" }
+  ]
+}

@@ -35,5 +35,4 @@ judgement call.
 ## Visual (enforced by QA against the design system)
 
 - Nothing from the cover grammar negative list
-- No colour photography, no stock-smile poses, no visible apparel logos,
-  no recognisable professional athletes in generated or edited imagery
+- No colour photography, no stock-smile poses,

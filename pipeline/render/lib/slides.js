@@ -2,10 +2,17 @@
 // Body slide components, ported one-to-one from design/04-slides/*.dc.html.
 // Each function returns the inner HTML of the canvas; slideShell wraps it in
 // the header, footer and ground the templates share.
-const { metrics, esc, px, v, color, size, space, st, type, mark, slideHeader, slideFooter } = require('./html');
+const { metrics, esc, px, v, color, size, space, st, type, mark, slideFooter } = require('./html');
 
 const SWIPE_LABEL = 'SWIPE →'; // 05-chrome/footer.dc.html
 const RULE = (tone) => `${px(metrics.rule.slide)} solid ${color(tone)}`;
+
+// cta's constant like / save / send row (design/HANDOFF.md v0.7, 24-unit viewBox paths).
+const CTA_ICONS = [
+  ['M12 20.5s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 8a4.2 4.2 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z'], // like
+  ['M6 3.5h12v17l-6-4-6 4z'], // save
+  ['M21 3 3 10.5l7.5 2.5L13 21z', 'M21 3 10.5 13'], // send
+];
 
 // Headline text may carry one [[accented]] phrase and \n line breaks.
 function richText(text) {
@@ -30,10 +37,10 @@ const valueRow = (value, unit, step, gap = 24) =>
 const centre = (gap, inner, extra = {}) =>
   `<div data-role="content" style="${st({ flex: 1, display: 'flex', 'flex-direction': 'column', 'justify-content': 'center', gap: space(gap), ...extra })}">${inner}</div>`;
 
-function slideShell({ series, index, total, ground = 'white', inner, footer }) {
+function slideShell({ ground = 'white', inner, footer }) {
   const bg = ground === 'accent' ? color('accent') : color('ground');
   const canvasStyle = st({ padding: v('margin'), background: bg, display: 'flex', 'flex-direction': 'column' });
-  const canvasInner = slideHeader(series, index, total, ground) + inner + (footer ?? slideFooter(ground, SWIPE_LABEL));
+  const canvasInner = inner + (footer ?? slideFooter(ground, SWIPE_LABEL));
   return { canvasStyle, canvasInner };
 }
 
@@ -48,7 +55,7 @@ const components = {
   },
 
   explainer(d) {
-    return centre(56, headline(d.headline, 's') + body(d.body));
+    return centre(56, (d.label ? kicker(d.label) : '') + headline(d.headline, 's') + body(d.body));
   },
 
   'numeral-point'(d) {
@@ -122,13 +129,13 @@ const components = {
         const last = i === n - 1;
         lines.push(`<line x1="${x}" y1="${major ? t.majorPad : t.minorPad}" x2="${x}" y2="${t.height - (major ? t.majorPad : t.minorPad)}" stroke="${color(last ? 'accent' : 'ink')}" stroke-width="${last ? t.accentStroke : t.stroke}"></line>`);
       }
-      return centre(56, headline(d.headline, 's') +
+      return centre(56, (d.label ? kicker(d.label) : '') + headline(d.headline, 's') +
         `<svg viewBox="0 0 ${w} ${t.height}" width="100%" height="${t.height}"><line x1="0" y1="${t.height / 2}" x2="${w}" y2="${t.height / 2}" stroke="${color('ink')}" stroke-width="${t.stroke}"></line>${lines.join('')}</svg>` +
         (d.caption ? kicker(d.caption) : ''));
     }
     const p = metrics.progressScale;
     const ticks = (d.ticks || []).map((t) => `<span style="${st({ color: t.tone ? color(t.tone === 'accent' ? 'accent-ink' : 'ink') : undefined })}">${esc(t.label)}</span>`).join('');
-    return centre(56, headline(d.headline, 's') +
+    return centre(56, (d.label ? kicker(d.label) : '') + headline(d.headline, 's') +
       `<div style="${st({ display: 'flex', 'flex-direction': 'column', gap: space(24) })}">` +
       `<div style="${st({ position: 'relative', height: px(p.barHeight), background: color('line') })}">` +
       `<div style="${st({ position: 'absolute', left: `${d.fill.from}%`, width: `${d.fill.to - d.fill.from}%`, top: 0, bottom: 0, background: color('accent') })}"></div>` +
@@ -206,30 +213,31 @@ const components = {
   },
 
   cta(d) {
-    const ask = Array.isArray(d.ask) ? d.ask.map(esc).join('<br>') : esc(d.ask);
+    const icons = CTA_ICONS.map((paths) =>
+      `<svg viewBox="0 0 24 24" width="${metrics.ctaIcon.size}" height="${metrics.ctaIcon.size}" fill="none" stroke="currentColor" stroke-width="${metrics.ctaIcon.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">` +
+      paths.map((dAttr) => `<path d="${esc(dAttr)}"></path>`).join('') + `</svg>`).join('');
     const inner = `<div data-role="content" style="${st({ flex: 1, display: 'flex', 'flex-direction': 'column', 'justify-content': 'center', 'align-items': 'center', gap: space(56), 'text-align': 'center' })}">` +
       mark(metrics.mark.cta, { arrow: 'on-accent', stem: 'mute-inv' }) +
       `<div style="${st({ display: 'flex', 'flex-direction': 'column', gap: space(16) })}">` +
       `<span style="${type.displaySemi('s', { 'line-height': metrics.leading.hero, 'letter-spacing': v('track-statement'), color: color('on-accent') })}">${esc(d.wordmark)}</span>` +
-      `<span style="${type.data({ 'font-size': size('body'), 'letter-spacing': v('track-wide'), color: color('on-accent') })}">${esc(d.tagline)}</span></div></div>`;
-    // Footer row: one line of source credit and the ask on the left, handle right.
-    const footer = `<div data-role="cta-footer" style="${st({ display: 'flex', 'justify-content': 'space-between', 'align-items': 'flex-end', 'min-height': v('footer-height') })}">` +
-      `<div style="${st({ display: 'flex', 'flex-direction': 'column', gap: space(12), 'max-width': px(metrics.ctaAskMaxWidth) })}">` +
-      (d.credit ? `<span data-role="credit" style="${type.data({ color: color('on-accent') })}">${esc(d.credit)}</span>` : '') +
-      `<p data-role="ask" style="margin:0;${type.body('body-lg', { 'line-height': metrics.leading.ctaAsk, color: color('on-accent') })}">${ask}</p></div>` +
-      `<span data-role="handle" style="${type.data({ color: color('on-accent') })}">${esc(d.handle)}</span></div>`;
+      `<span style="${type.data({ 'font-size': size('body'), 'letter-spacing': v('track-wide'), color: color('on-accent') })}">${esc(d.tagline)}</span></div>` +
+      `<div style="${st({ display: 'flex', gap: space(40), color: color('on-accent') })}">${icons}</div></div>`;
+    // Footer band: nothing but one line of source credit (deck-rules), truncated with an ellipsis if it overruns.
+    const footer = `<div data-role="cta-footer" style="${st({ display: 'flex', 'align-items': 'center', 'min-height': v('footer-height') })}">` +
+      (d.credit ? `<span data-role="credit" style="${st({ display: 'block', width: '100%', overflow: 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap' })};${type.data({ color: color('on-accent') })}">${esc(d.credit)}</span>` : '') +
+      `</div>`;
     return { inner, footer };
   },
 };
 
 // Build one body slide. Returns { canvasStyle, canvasInner }.
-function buildSlide(slide, { series, index, total, ctx }) {
+function buildSlide(slide, { ctx }) {
   const fn = components[slide.type];
   if (!fn) throw new Error(`unknown slide type "${slide.type}"`);
   const out = fn(slide, ctx);
   const ground = slide.type === 'cta' || slide.ground === 'accent' ? 'accent' : 'white';
-  if (typeof out === 'string') return slideShell({ series, index, total, ground, inner: out });
-  return slideShell({ series, index, total, ground, inner: out.inner, footer: out.footer });
+  if (typeof out === 'string') return slideShell({ ground, inner: out });
+  return slideShell({ ground, inner: out.inner, footer: out.footer });
 }
 
 module.exports = { buildSlide, components, richText };

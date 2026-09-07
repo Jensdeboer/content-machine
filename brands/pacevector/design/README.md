@@ -22,7 +22,8 @@ Code-rendered source for the PaceVector visual identity. Every file here is deri
   - Every cover is unique: never reuse a library cover across decks, and it has to stop the scroll on its own (stop-test ≥ 4/5).
   - A kicker chip on the cover is optional (about one deck in three), placed against the headline. No corner title or page counter on any slide.
   - Slides 2–6 carry one numbered point each, 01–05 in order. Vary which component opens: not every deck starts stat → numeral.
-  - Slide 7 is the CTA: mark, name, tagline, then like / save / send icons. No handle, no source lines.
+  - Slide 7 is the CTA: mark, name, tagline, then like / save / send icons. No handle. The otherwise-empty
+    footer band carries the one line of source credit when the deck cites something (deck-rules.md).
 - `07-profile/` — `avatar.dc.html`, `grid.dc.html`.
 
 ## Status

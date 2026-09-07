@@ -1,5 +1,5 @@
 'use strict';
-// HTML skeleton and chrome (mark, kicker, slide header, footer). Every colour
+// HTML skeleton and chrome (mark, kicker, footer). Every colour
 // and size is a token role or a value from component-metrics.json.
 const fs = require('fs');
 const path = require('path');
@@ -64,34 +64,23 @@ function groundRoles(ground) {
   throw new Error(`unknown ground ${ground}`);
 }
 
-// Cover kicker, top-left. Plain (mute / mute-inv) or a signal chip, or signal
-// type on navy. `zIndex` keeps chrome above figure and headline.
-function coverKicker(text, ground, signal) {
-  const g = groundRoles(ground);
-  const base = { position: 'absolute', top: v('margin'), left: v('margin'), 'z-index': 6 };
-  let extra;
-  if (signal === 'chip') {
-    extra = { background: color('signal'), color: color('ink'), padding: `${space(12)} ${space(24)}` };
-  } else if (signal === 'type') {
-    extra = { color: color('signal') };
-  } else {
-    extra = { color: color(g.muted) };
-  }
-  const role = signal === 'chip' || signal === 'type' ? ' data-signal="kicker"' : '';
-  return `<span data-role="kicker"${role} style="${st(base)};${type.data(extra)}">${esc(text)}</span>`;
+// Cover kicker: optional, always a signal chip, placed against the headline
+// block at a `top` the caller computes (cover-grammar KICKER) rather than a
+// fixed corner. `zIndex` keeps it above the figure and headline.
+function coverKicker(text, top) {
+  const k = metrics.cover;
+  const base = {
+    position: 'absolute', top: px(top), left: v('margin'), 'z-index': 6,
+    background: color('signal'), color: color('ink'), padding: `${space(k.kickerPadY)} ${space(k.kickerPadX)}`,
+    'line-height': k.kickerLineHeight,
+  };
+  return `<span data-role="kicker" data-signal="kicker" style="${st(base)};${type.data()}">${esc(text)}</span>`;
 }
 
 function coverMark(ground) {
   const g = groundRoles(ground);
   return `<span style="${st({ position: 'absolute', top: v('margin'), right: v('margin'), 'z-index': 6, display: 'flex' })}">` +
     mark(metrics.mark.cover, { arrow: g.ink, stem: g.stem }) + `</span>`;
-}
-
-// Slide header: series left, "NN / NN" right.
-function slideHeader(series, index, total, ground) {
-  const c = ground === 'accent' ? 'on-accent' : 'accent-ink';
-  return `<div data-role="header" style="${st({ display: 'flex', 'justify-content': 'space-between' })};${type.data({ color: color(c) })}">` +
-    `<span>${esc(series)}</span><span data-role="counter">${String(index).padStart(2, '0')} / ${String(total).padStart(2, '0')}</span></div>`;
 }
 
 // Slide footer: mark left, mono label right, on the 96 footer zone.
@@ -131,4 +120,4 @@ ${canvasInner}
 </div></body></html>`;
 }
 
-module.exports = { metrics, esc, px, v, color, size, space, st, type, mark, groundRoles, coverKicker, coverMark, slideHeader, slideFooter, page, FONTS_DIR, ORIGIN };
+module.exports = { metrics, esc, px, v, color, size, space, st, type, mark, groundRoles, coverKicker, coverMark, slideFooter, page, FONTS_DIR, ORIGIN };

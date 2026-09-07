@@ -6,3 +6,7 @@ __pycache__/
 .DS_Store
 out/
 _incoming/
+
+pipeline/state.db
+
+pipeline/out/

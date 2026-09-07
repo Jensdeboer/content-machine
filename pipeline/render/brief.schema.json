@@ -8,32 +8,32 @@
   "additionalProperties": false,
   "properties": {
     "deckId": { "type": "string", "pattern": "^PV-\\d{2,3}$", "description": "Deck key. Output lands in out/<deckId>/." },
+    "topic": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Topic slug, e.g. \"easy-pace-too-fast\". Minted by the pick stage, carried through the brief, and written to the posted row so the picker can exclude the topic for 60 days and match it against rejected.md by exact lookup." },
     "series": { "type": "string", "description": "Series label as it appears in the slide header, uppercase mono, e.g. \"RUNNING 101\" (series.md)." },
     "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Planned post date (ISO). Anchors the 90-day perceptual-hash window and is written to the posted row. Defaults to today." },
-    "handle": { "type": "string", "description": "Handle shown on the cta slide. Defaults to @PACEVECTOR." },
     "cover": { "$ref": "#/$defs/cover" },
     "slides": {
       "type": "array", "minItems": 4, "maxItems": 6,
-      "description": "Slides 2..N in order. Slide 2 must be a stat or a question that stands alone; the last must be cta; the same component never runs three in a row.",
+      "description": "Slides 2..N in order. Any 04-slides component may sit at slide 2; the only fixed positions are the cover (slide 1) and cta (the last slide). The same component never runs three in a row.",
       "items": { "$ref": "#/$defs/slide" }
     }
   },
   "$defs": {
     "cover": {
       "type": "object",
-      "required": ["subject", "mode", "kicker", "headline"],
+      "required": ["subject", "mode", "headline"],
       "additionalProperties": false,
       "properties": {
         "subject": { "enum": ["full-figure", "detail", "type-led", "conceptual"], "description": "Cover family. Mix per rolling 20 posts is 14/3/2/1 and is enforced from posted.jsonl." },
         "ground": { "enum": ["white", "navy", "deep"], "description": "Cover ground. Omit to take the ground the alternation requires; when given it is checked against the last post (deep counts as navy)." },
         "mode": { "enum": ["shout", "sentence", "number"], "description": "Headline mode (cover-grammar). Never the same mode three posts running." },
-        "kicker": { "type": "string", "description": "Top-left mono kicker, six words max, separator · never an em dash. In number mode this is the unit line." },
+        "kicker": { "type": "string", "description": "Optional mono chip, six words max, separator · never an em dash. Always rendered as a signal chip (black type on signal fill) positioned against the headline's left edge, above or below the block — the renderer computes the top, never a corner. It is the cover's one signal element (signal must be omitted when kicker is set), and is dropped rather than moving the headline if no clear position exists. In number mode this is the unit line." },
         "headline": { "type": "string", "description": "The headline copy. Shout: one or two words (rendered uppercase). Sentence: five to nine words. Number: a single figure." },
         "lines": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Explicit line breaks. When omitted: shout breaks one word per line, sentence breaks greedily at the fitted size, number is one line. The concatenation must equal the headline." },
         "align": { "enum": ["left", "centre", "right"], "description": "Headline alignment within the 888 measure. Default left; number mode defaults to centre." },
         "aside": { "type": "string", "description": "Optional one-line aside under the headline, IBM Plex Sans 300 italic at lead." },
         "payoff": { "type": "string", "description": "Type-led covers only: a short Sora 700 line near the bottom of the safe area (e.g. \"You go anyway.\"). Steps down from subtitle to fit." },
-        "signal": { "enum": ["chip", "type", "block", "mark", null], "description": "The single signal element, or none. chip: kicker chip (either ground). type: kicker in signal (navy only). block: fill block under the last headline line with ink type (white only). mark: the tick on the markedKm device (conceptual only)." },
+        "signal": { "enum": ["type", "block", "mark", null], "description": "The single signal element, or none. Omit or null when kicker is set — the chip is already the one signal element. type: signal-coloured type (navy only). block: fill block under the last headline line with ink type (white only). mark: the tick on the markedKm device (conceptual only)." },
         "figure": {
           "type": "object", "additionalProperties": false,
           "description": "full-figure and detail covers. Name a cutout or give hints; the renderer picks the first eligible cutout by energy/faces match, skipping ids used in the last 5 posts and grounds the manifest excludes.",
@@ -120,7 +120,7 @@
     },
     "explainer": {
       "required": ["headline", "body"], "additionalProperties": false,
-      "properties": { "type": true, "headline": { "$ref": "#/$defs/richText" }, "body": { "$ref": "#/$defs/richText" } }
+      "properties": { "type": true, "label": { "type": "string", "description": "Mono eyebrow, e.g. \"03 · WALK BREAKS\" (deck-rules: sequential point numbering)." }, "headline": { "$ref": "#/$defs/richText" }, "body": { "$ref": "#/$defs/richText" } }
     },
     "numeralPoint": {
       "additionalProperties": false,
@@ -166,6 +166,7 @@
       "required": ["headline", "source"], "additionalProperties": false,
       "properties": {
         "type": true,
+        "label": { "type": "string", "description": "Mono eyebrow, e.g. \"05 · THE TEN PERCENT RULE\" (deck-rules: sequential point numbering)." },
         "headline": { "$ref": "#/$defs/richText" },
         "fill": { "type": "object", "required": ["from", "to"], "additionalProperties": false, "properties": { "from": { "type": "number", "minimum": 0, "maximum": 100 }, "to": { "type": "number", "minimum": 0, "maximum": 100 } }, "description": "Accent range as percentages of the bar." },
         "marker": { "type": "number", "minimum": 0, "maximum": 100, "description": "Ink marker position, percent." },
@@ -214,12 +215,10 @@
       }
     },
     "cta": {
-      "required": ["ask", "credit"], "additionalProperties": false,
+      "additionalProperties": false,
       "properties": {
         "type": true,
-        "ask": { "anyOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 2 } ], "description": "One or two lines: save/follow prompt or a question." },
-        "credit": { "type": "string", "description": "One line of source credit (deck-rules: last slide carries one line of source credit)." },
-        "wordmark": { "type": "string" }, "tagline": { "type": "string" }, "handle": { "type": "string" }
+        "credit": { "type": "string", "description": "One line of source credit, shown in the otherwise-empty footer band (mono label, on-accent, left-aligned, truncated with an ellipsis if it overruns). deck-rules: last slide carries one line of source credit. Omit when the deck cites nothing; the footer band is then empty. cta takes no other deck input — mark, wordmark, tagline and the three icons are constant." }
       }
     },
     "postedRow": {
@@ -230,12 +229,14 @@
         "deckId": { "type": "string" },
         "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
         "series": { "type": "string" },
+        "topic": { "type": ["string", "null"], "description": "Topic slug from the brief. The picker excludes a slug for 60 days and matches rejected.md on it." },
         "ground": { "enum": ["white", "navy", "deep"] },
         "subject": { "enum": ["full-figure", "detail", "type-led", "conceptual"] },
         "mode": { "enum": ["shout", "sentence", "number"] },
         "cutout": { "type": ["string", "null"] },
         "position": { "type": ["string", "null"], "description": "Figure position label, e.g. bottom-right." },
         "signal": { "type": ["string", "null"] },
+        "kicker": { "type": ["string", "null"], "description": "Chip text if the cover carried a kicker chip (dropped covers record null), for the chip rotation check: no chip two posts running, at most 7 per rolling 20." },
         "coverHash": { "type": ["string", "null"], "description": "16 hex chars, 64-bit DCT perceptual hash of 01.jpg." }
       }
     }

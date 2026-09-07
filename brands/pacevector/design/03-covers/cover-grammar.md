@@ -38,7 +38,9 @@ The P mark, small, one corner. No handle, no progress bar, no swipe cue, no chev
 No headline mode three posts running. No cutout position repeated within five posts.
 
 ## NEGATIVE LIST
-No colour photography. No gradients except ground-deep. No second signal element. No smiling stock poses. No visible apparel logos. No recognisable professional athletes. No emoji. No exclamation marks. No em dash in a kicker. Nothing under 30px.
+No colour photography. No gradients except ground-deep. No second signal element. No smiling stock poses. No recognisable professional athletes. No emoji. No exclamation marks. No em dash in a kicker. Nothing under the 24px token floor (`size.floor` in tokens.json); the kicker at the 26px label step is legal.
+
+Visible apparel logos are permitted. Cutouts carry a `logos` flag in cutouts.json so a cover can avoid one where it would distract, but a logo is never a reason to reject a figure.
 
 ## STOP TEST
 One point each, pass at 4.

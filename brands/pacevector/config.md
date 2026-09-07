@@ -108,3 +108,67 @@ endpoint - see Publishing above.
 
 - `publishing_enabled` - one row, flippable from the review page. Off means no
   packets and no inbox pushes until flipped back.
+
+## Models
+
+Read by `pipeline/models.js`. Change a value here, not in code. Stages resolve
+an alias, so swapping a model for every stage that uses it is one word.
+
+| Stage | Model |
+|---|---|
+| scan | sonnet |
+| pick | sonnet |
+| verify | strong |
+| write | strong |
+| render | none |
+| qa | none |
+
+| Alias | Model id |
+|---|---|
+| sonnet | claude-sonnet-5 |
+| strong | claude-opus-5 |
+
+- **Backend: the Claude Code CLI**, `claude -p --output-format json --model <id>`,
+  run as a subprocess against the box's existing Max-plan login. No API key and
+  no per-token bill: adding a brand costs a folder, not money.
+- `MODELS_BACKEND=stub` in `.env` swaps in `pipeline/fixtures/` so a whole run
+  can be exercised offline. Anything else, or unset, means the CLI.
+- `callModel({stage, prompt, schema})` in `pipeline/models.js` is the only way
+  a stage may reach a model. No stage shells out or imports an SDK itself.
+- Timeout per call: 300 seconds. One retry on timeout or a non-zero exit; one
+  retry on a JSON parse failure, with the parse error fed back to the model.
+  Failing twice fails the stage, and the deck parks as needs_attention. Half
+  parsed output is never returned to a caller.
+- Verify may use web search: yes. The verify stage runs with WebSearch and
+  WebFetch allowed so a figure can be traced to a real url; every other stage
+  runs with no tools.
+
+## Run settings
+
+Read by `pipeline/run.js`.
+
+- Deck key prefix: PV
+- Ideas per run: 5
+- Scan score threshold: 4
+- Scan seen window (days): 30
+- Topic window (days): 60
+- Feed timeout (seconds): 20
+- Feed pause (seconds): 5
+- Feed retry pause (seconds): 60
+- Feed user agent: Mozilla/5.0 (compatible; content-machine/1.0)
+- Max items per scan call: 40
+- State database: pipeline/state.db
+- Output directory: out
+
+The scan threshold is the 1-5 score from `positioning.md`, on the same scale as
+the cover stop test. Drop it to 3 for a looser night; that is a config change,
+not a deploy. The screenshot test in `positioning.md` runs first and is a gate:
+a no is out whatever it scored.
+
+## Telegram
+
+- Bot token: `TELEGRAM_BOT_TOKEN` in `.env` on the box, never in this repo.
+- Chat id: `TELEGRAM_CHAT_ID`.
+- Stage failures, dead feeds, drift between state.db and posted.jsonl, and the
+  run summary all go here. With the variables unset the run still completes:
+  messages go to stdout and are recorded on the run row.

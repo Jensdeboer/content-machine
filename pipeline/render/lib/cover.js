@@ -305,11 +305,13 @@ async function composeCover(brief, ctx, page, buildPage) {
   const align = c.align || (c.mode === 'number' ? 'centre' : 'left');
   const blocks = [];
 
-  // Chrome first so the fit loop can measure against it.
-  const chrome = coverKicker(c.kicker, ground, c.signal) + coverMark(ground);
+  // Mark first so the fit loop can measure against it. The kicker, if any, is
+  // no longer fixed chrome: its top depends on the headline layout resolved
+  // below, so it is placed and checked afterwards (cover-grammar KICKER).
+  const chrome = coverMark(ground);
   const canvasStyle = st({ background: g.bg });
   await ctx.show(page, buildPage({ slideIndex: 1, slideType: 'cover', canvasInner: chrome, canvasStyle }));
-  const chromeRects = await page.evaluate(() => [...document.querySelectorAll('[data-role="kicker"],[data-role="mark"]')].map((el) => {
+  const chromeRects = await page.evaluate(() => [...document.querySelectorAll('[data-role="mark"]')].map((el) => {
     const b = document.querySelector('[data-role="canvas"]').getBoundingClientRect(); const r = el.getBoundingClientRect();
     return { role: el.dataset.role, rect: { x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height } };
   }));
@@ -468,6 +470,26 @@ async function composeCover(brief, ctx, page, buildPage) {
     resolved.occlusion = layout.occlusion.lines.map((l) => ({ line: l.index, front: l.front, maxCoverage: Math.max(0, ...l.words.flatMap((w) => w.glyphs.map((g) => g.coverage))) }));
   }
 
+  // Kicker: optional, always a chip, placed against the now-resolved headline
+  // block rather than a fixed corner (cover-grammar KICKER). Preferred above
+  // the headline (headline-top - chip-height - gap), else below
+  // (headline-bottom + gap); dropped rather than moving the headline if
+  // neither position clears the figure, the mark or the safe area.
+  resolved.kicker = null;
+  if (c.kicker) {
+    const k = metrics.cover;
+    const [km] = await page.evaluate((items) => window.__pv.measure(items), [{ text: c.kicker, style: type.data({ 'line-height': k.kickerLineHeight }) }]);
+    const chipH = Math.ceil(km.h) + k.kickerPadY * 2;
+    const chipW = Math.ceil(km.w) + k.kickerPadX * 2;
+    const chipRect = (top) => ({ x: tokens.margin, y: top, w: chipW, h: chipH });
+    const fitsSafe = (top) => top >= tokens.safe.y && top + chipH <= tokens.safe.y + tokens.safe.height;
+    const clear = (top) => (!layout.box || !cut.intersects(chipRect(top), layout.box)) && !chromeRects.some((r) => cut.intersects(chipRect(top), r.rect));
+    const above = layout.top - chipH - k.kickerGap;
+    const below = layout.top + fit.blockH + k.kickerGap;
+    const chosen = [above, below].find((top) => fitsSafe(top) && clear(top));
+    if (chosen !== undefined) resolved.kicker = { text: c.kicker, top: Math.round(chosen) };
+  }
+
   // Final HTML.
   const top = layout.top;
   const parts = [chrome];
@@ -478,6 +500,7 @@ async function composeCover(brief, ctx, page, buildPage) {
   }
   if (layout.figure) parts.push(figureHtml(layout.cutout, layout.figure, cutouts.dataUri(layout.cutout)));
   parts.push(headlineHtml(tokens, fit, c.mode, align, top, layout.zBehind, inkRole, extraStyle));
+  if (resolved.kicker) parts.push(coverKicker(resolved.kicker.text, resolved.kicker.top));
   if (c.signal === 'block') parts.push(signalBlockHtml(tokens, lineRect(tokens, fit, align, top, lastLine)));
   parts.push(deviceHtml(tokens, brief, fit, top, inkRole, ground));
   if (aside) parts.push(asideHtml(tokens, aside.text, Math.round(top + fit.blockH + metrics.cover.asideGap), inkRole, align));

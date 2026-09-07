@@ -6,10 +6,8 @@
     "subject": "full-figure",
     "ground": "navy",
     "mode": "sentence",
-    "kicker": "RUNNING 101 · EASY DAYS",
     "headline": "Your easy pace is not slow enough.",
     "lines": ["Your easy", "pace is not", "slow enough."],
-    "signal": null,
     "figure": { "cutout": "fig-seated-reach-side", "mirror": true, "x": 351, "y": 919, "scale": 1 },
     "layout": { "headlineTop": 460, "front": [0] },
     "stopTest": { "score": 5, "notes": ["three short lines at 140 hold up", "easy is not easy enough", "a long reach to the shoe, pointing at the words", "signal deliberately absent", "how slow is slow enough"] }
@@ -32,17 +30,18 @@
     },
     {
       "type": "numeral-point",
-      "numeral": "01",
+      "numeral": "02",
       "headline": "If you cannot talk in full sentences, slow down."
     },
     {
       "type": "explainer",
+      "label": "03 · WALK BREAKS",
       "headline": "Walk breaks are not failure.",
       "body": "Run-walk is how most people reach thirty continuous minutes. Nobody is checking."
     },
     {
       "type": "checklist",
-      "label": "02 · BEFORE YOU ADD DISTANCE",
+      "label": "04 · BEFORE YOU ADD DISTANCE",
       "headline": "Three weeks at the same volume first.",
       "items": [
         "Same weekly distance, three weeks running",
@@ -52,6 +51,7 @@
     },
     {
       "type": "progress-scale",
+      "label": "05 · THE TEN PERCENT RULE",
       "headline": "Add about ten percent a week, at most.",
       "fill": { "from": 0, "to": 10 },
       "marker": 10,
@@ -71,7 +71,6 @@
     },
     {
       "type": "cta",
-      "ask": "Save this for your first month.",
       "credit": "SOURCES · DANIELS · BUIST 2008"
     }
   ]

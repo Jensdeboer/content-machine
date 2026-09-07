@@ -1,5 +1,9 @@
 {
   "$note": "Dimensions the locked templates in design/04-slides, 03-covers and 05-chrome hard-code without a token. Copied verbatim, one entry per template value, so no pixel size lives in renderer code. Unitless numbers are slide-space px at 1080x1350 unless the key says otherwise. When a value appears in tokens.json the renderer reads the token instead and it is not listed here.",
+  "ctaIcon": {
+    "size": 64,
+    "strokeWidth": 2.4
+  },
   "mark": {
     "cover": 64,
     "footer": 44,
@@ -26,11 +30,9 @@
     "compareHeadline": 1.05,
     "metricsPhrase": 1.2,
     "checklistItem": 1.35,
-    "ctaAsk": 1.4,
     "monoRow": 2.1
   },
   "copyMaxWidth": 820,
-  "ctaAskMaxWidth": 640,
   "checklist": {
     "marker": 20,
     "markerOffset": 16,
@@ -212,6 +214,10 @@
       "$from": "03-covers/cover-type-led.dc.html 04: block left 0, width 1000 (= canvas 1080 - 80), 20 above the line box"
     },
     "asideGap": 32,
-    "kickerLineHeight": 1.2
+    "kickerLineHeight": 1.2,
+    "kickerPadY": 12,
+    "kickerPadX": 24,
+    "kickerGap": 32,
+    "$kickerGap-note": "Not stated as a pixel value anywhere in HANDOFF.md or the grammar (only the formula: headline-top - chip-height - gap, else headline-bottom + gap). Set equal to asideGap: same role, breathing room between the headline block and an adjacent line."
   }
 }

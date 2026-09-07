@@ -1,0 +1,66 @@
+{
+  "$fixture": "MODELS_BACKEND=stub only. One response per idea, in pick order. The urls are real records; the quotes are NOT real quotes and say so, and every row is crossChecked false, so QA warns and the publish gate stays shut. Fixture output must never look publishable.",
+  "responses": [
+    {
+      "blocked": false,
+      "blockReason": null,
+      "sources": [
+        {
+          "figure": "~2",
+          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+          "publisher": "FIXTURE, not a verified publisher",
+          "retrieved": "2026-09-07",
+          "crossChecked": false,
+          "headline": false
+        }
+      ]
+    },
+    { "blocked": false, "blockReason": null, "sources": [] },
+    {
+      "blocked": false,
+      "blockReason": null,
+      "sources": [
+        {
+          "figure": "~2,000",
+          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42698071/",
+          "publisher": "FIXTURE, not a verified publisher",
+          "retrieved": "2026-09-07",
+          "crossChecked": false,
+          "headline": false
+        }
+      ]
+    },
+    {
+      "blocked": false,
+      "blockReason": null,
+      "sources": [
+        {
+          "figure": "500",
+          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42688531/",
+          "publisher": "FIXTURE, not a verified publisher",
+          "retrieved": "2026-09-07",
+          "crossChecked": false,
+          "headline": false
+        }
+      ]
+    },
+    {
+      "blocked": false,
+      "blockReason": null,
+      "sources": [
+        {
+          "figure": "10",
+          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/42688309/",
+          "publisher": "FIXTURE, not a verified publisher",
+          "retrieved": "2026-09-07",
+          "crossChecked": false,
+          "headline": false
+        }
+      ]
+    }
+  ]
+}

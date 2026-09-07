@@ -1,0 +1,277 @@
+{
+  "$fixture": "MODELS_BACKEND=stub only. One response per idea, in pick order. Each brief omits deckId, date and topic: run.js fills those in. Source rows on these decks are fixture rows (see verify.json), so QA warns and the publish gate stays shut.",
+  "responses": [
+    {
+      "brief": {
+        "series": "RUNNING 101",
+        "cover": {
+          "subject": "full-figure",
+          "ground": "navy",
+          "mode": "sentence",
+          "headline": "Your easy pace is not slow enough.",
+          "lines": ["Your easy", "pace is not", "slow enough."],
+          "figure": { "cutout": "fig-seated-reach-side", "mirror": true, "x": 351, "y": 919, "scale": 1 },
+          "layout": { "headlineTop": 460, "front": [0] },
+          "stopTest": { "score": 5, "notes": ["three short lines at 140 hold up", "one idea: easy is not easy enough", "a long reach to the shoe, pointing at the words", "signal deliberately absent", "how slow is slow enough"] }
+        },
+        "slides": [
+          {
+            "type": "stat",
+            "label": "01 · EASY MEANS EASY",
+            "value": "~2",
+            "unit": "MIN/KM SLOWER THAN 5K PACE",
+            "headline": "That is roughly what easy feels like at first: too slow.",
+            "source": {
+              "figure": "~2",
+              "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+              "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+              "publisher": "FIXTURE, not a verified publisher",
+              "retrieved": "2026-09-07",
+              "crossChecked": false
+            }
+          },
+          { "type": "numeral-point", "numeral": "02", "headline": "If you cannot talk in full sentences, slow down." },
+          {
+            "type": "explainer",
+            "label": "03 · WHAT EASY BUILDS",
+            "headline": "Slow running is not wasted running.",
+            "body": "Easy effort is where most of the aerobic work happens. It is quiet, it is boring, and it is the part that lasts."
+          },
+          {
+            "type": "checklist",
+            "label": "04 · HOW TO KNOW IT IS EASY",
+            "headline": "Three checks on your next easy run.",
+            "items": [
+              "You can speak a full sentence out loud",
+              "Your breathing settles within a minute of stopping",
+              "You finish thinking you could do it again"
+            ]
+          },
+          {
+            "type": "pull-statement",
+            "label": "05 · THIS WEEK",
+            "headline": "Run one session this week slower than feels reasonable.",
+            "aside": "Yes, that slow."
+          },
+          { "type": "cta", "credit": "SOURCE · FIXTURE ROW, NOT FOR PUBLICATION" }
+        ]
+      },
+      "captions": {
+        "instagram": "Most easy runs are not easy. If you can hold a conversation, you are in the right place. Slow running builds the engine that makes the fast days possible, and it only works if you actually go slow.",
+        "tiktok": "Easy run pace confuses everyone at the start. If you are learning how to start running, the talk test is the simplest check there is: full sentences, or slow down."
+      }
+    },
+    {
+      "brief": {
+        "series": "MINDSET",
+        "cover": {
+          "subject": "type-led",
+          "ground": "white",
+          "mode": "shout",
+          "headline": "SHOW UP",
+          "lines": ["SHOW", "UP"],
+          "device": "rule-cut",
+          "layout": { "headlineTop": 300 },
+          "stopTest": { "score": 4, "notes": ["reads at 120px", "one idea", "the rule cuts between the words", "no signal, deliberately", "the deck answers how"] }
+        },
+        "slides": [
+          { "type": "numeral-point", "numeral": "01", "headline": "Motivation is not the input. The start time is." },
+          {
+            "type": "explainer",
+            "label": "02 · WHY IT WORKS",
+            "headline": "Decide once, not every morning.",
+            "body": "A run you decided on last night costs nothing to start. A run you are deciding on now costs everything you have at six in the morning."
+          },
+          {
+            "type": "checklist",
+            "label": "03 · THE NIGHT BEFORE",
+            "headline": "Three things that remove the decision.",
+            "items": [
+              "Kit out, by the door, laid flat",
+              "A route you already know, no planning",
+              "One alarm, no snooze, shoes on before coffee"
+            ]
+          },
+          {
+            "type": "explainer",
+            "label": "04 · THE FIRST TEN",
+            "headline": "Commit to ten minutes, not to the session.",
+            "body": "Ten minutes is short enough to agree to on a bad morning. Most of the time you keep going, and the days you do not still count."
+          },
+          { "type": "pull-statement", "label": "05 · THIS WEEK", "headline": "Pick tomorrow's start time tonight, and write it down." },
+          { "type": "cta", "credit": "NO FIGURES ON THIS DECK" }
+        ]
+      },
+      "captions": {
+        "instagram": "Nobody feels like running at five in the morning. The runners who go anyway are not more motivated, they just made the decision the night before, when it was cheap.",
+        "tiktok": "Running motivation is the wrong thing to chase. Build a running habit instead: kit by the door, one alarm, and a start time you chose last night."
+      }
+    },
+    {
+      "brief": {
+        "series": "SCIENCE",
+        "cover": {
+          "subject": "conceptual",
+          "ground": "navy",
+          "mode": "sentence",
+          "headline": "Your legs quit before your lungs do.",
+          "lines": ["Your legs quit", "before your", "lungs do."],
+          "device": "paceLine",
+          "stopTest": { "score": 5, "notes": ["reads small", "one idea", "the pace line carries the tension", "no signal", "why is answered inside"] }
+        },
+        "slides": [
+          {
+            "type": "stat",
+            "label": "01 · THE TANK",
+            "value": "~2,000",
+            "unit": "KCAL OF STORED GLYCOGEN",
+            "headline": "Roughly what a trained body holds, and roughly what a long run spends.",
+            "valueStep": "l",
+            "source": {
+              "figure": "~2,000",
+              "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+              "url": "https://pubmed.ncbi.nlm.nih.gov/42698071/",
+              "publisher": "FIXTURE, not a verified publisher",
+              "retrieved": "2026-09-07",
+              "crossChecked": false
+            }
+          },
+          { "type": "numeral-point", "numeral": "02", "headline": "Breathing settles. Legs do not." },
+          {
+            "type": "explainer",
+            "label": "03 · WHAT IS ACTUALLY TIRED",
+            "headline": "The limit is fuel and muscle, not air.",
+            "body": "Late in a long run the working muscle is out of its easiest fuel and taking small amounts of damage. Your breathing has been fine for an hour."
+          },
+          {
+            "type": "checklist",
+            "label": "04 · WHAT HELPS",
+            "headline": "Three things that move the wall later.",
+            "items": [
+              "Eat before the run, and again during anything past ninety minutes",
+              "Build the long run gradually, week on week",
+              "Run the easy days easy so the long run has something left to use"
+            ]
+          },
+          { "type": "pull-statement", "label": "05 · THIS WEEK", "headline": "Take food on your next long run, before you think you need it." },
+          { "type": "cta", "credit": "SOURCE · FIXTURE ROW, NOT FOR PUBLICATION" }
+        ]
+      },
+      "captions": {
+        "instagram": "The wall is not your lungs giving up. It is fuel running out and muscle taking damage, which is why eating early in a long run changes how the last half feels.",
+        "tiktok": "Why do legs give out on a long run? Marathon fuelling is most of the answer, and long run pace is the rest. Eat before you feel empty."
+      }
+    },
+    {
+      "brief": {
+        "series": "GEAR",
+        "cover": {
+          "subject": "full-figure",
+          "ground": "white",
+          "mode": "sentence",
+          "headline": "Foam fades slowly, not all at once.",
+          "lines": ["Foam fades slowly,", "not all at once."],
+          "figure": { "cutout": "fig-tying", "x": 499, "y": 450, "scale": 1, "mirror": false },
+          "layout": { "headlineTop": 160 },
+          "stopTest": { "score": 4, "notes": ["short lines hold at 120px", "one idea", "the crouch has tension", "no signal", "the number is inside"] }
+        },
+        "slides": [
+          { "type": "numeral-point", "numeral": "01", "headline": "There is no day your shoes stop working." },
+          {
+            "type": "stat",
+            "label": "02 · A RANGE, NOT A DEADLINE",
+            "value": "500",
+            "unit": "KM, GIVE OR TAKE",
+            "headline": "Around here most foams are past their best.",
+            "body": "A reference point, not a rule. Body weight, surface and stride move it a long way either side.",
+            "source": {
+              "figure": "500",
+              "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+              "url": "https://pubmed.ncbi.nlm.nih.gov/42688531/",
+              "publisher": "FIXTURE, not a verified publisher",
+              "retrieved": "2026-09-07",
+              "crossChecked": false
+            }
+          },
+          {
+            "type": "explainer",
+            "label": "03 · WHAT ACTUALLY WEARS",
+            "headline": "The midsole goes before the upper looks tired.",
+            "body": "Outsole rubber and clean uppers tell you nothing. The foam under your heel is the part doing the work, and it softens quietly."
+          },
+          {
+            "type": "checklist",
+            "label": "04 · WHEN TO REPLACE",
+            "headline": "Three signals worth more than a number.",
+            "items": [
+              "The same route starts feeling harder underfoot",
+              "Familiar aches return with no change in training",
+              "The foam stays creased instead of springing back"
+            ]
+          },
+          { "type": "pull-statement", "label": "05 · THIS WEEK", "headline": "Write today's date inside the tongue of your next pair." },
+          { "type": "cta", "credit": "SOURCE · FIXTURE ROW, NOT FOR PUBLICATION" }
+        ]
+      },
+      "captions": {
+        "instagram": "Shoes do not expire on a set day. The foam softens gradually, so the useful signal is how the same familiar route starts to feel, not the number on a tracking app.",
+        "tiktok": "When to replace running shoes is the most asked gear question there is. Running shoe mileage is a range, not a deadline, and your legs tell you before the app does."
+      }
+    },
+    {
+      "brief": {
+        "series": "MISTAKES",
+        "cover": {
+          "subject": "type-led",
+          "ground": "navy",
+          "mode": "sentence",
+          "headline": "The time you bank early is a loan.",
+          "lines": ["The time you bank", "early is a loan."],
+          "device": "hairline-stack",
+          "layout": { "headlineTop": 520 },
+          "stopTest": { "score": 4, "notes": ["two lines, reads small", "one idea", "the hairlines hold the type", "no signal", "the cost is inside"] }
+        },
+        "slides": [
+          {
+            "type": "stat",
+            "label": "01 · WHAT IT COSTS",
+            "value": "10",
+            "unit": "SEC/KM BANKED EARLY",
+            "headline": "Costs about a minute per kilometre after thirty.",
+            "source": {
+              "figure": "10",
+              "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+              "url": "https://pubmed.ncbi.nlm.nih.gov/42688309/",
+              "publisher": "FIXTURE, not a verified publisher",
+              "retrieved": "2026-09-07",
+              "crossChecked": false
+            }
+          },
+          { "type": "numeral-point", "numeral": "02", "headline": "Fresh legs lie to you for about eight kilometres." },
+          {
+            "type": "explainer",
+            "label": "03 · WHY IT FEELS FINE",
+            "headline": "Goal pace feels slow at the start, and that is the trap.",
+            "body": "Adrenaline and rested legs make the opening kilometres cheap. The bill arrives later, and the maths never works in your favour."
+          },
+          {
+            "type": "checklist",
+            "label": "04 · HOW TO HOLD BACK",
+            "headline": "Three ways to keep the first half honest.",
+            "items": [
+              "Let the first kilometre be your slowest, on purpose",
+              "Check your watch at three, not at one",
+              "Run the first half by effort, the second by the clock"
+            ]
+          },
+          { "type": "pull-statement", "label": "05 · THIS WEEK", "headline": "Run your next long run's first kilometre deliberately too slow." },
+          { "type": "cta", "credit": "SOURCE · FIXTURE ROW, NOT FOR PUBLICATION" }
+        ]
+      },
+      "captions": {
+        "instagram": "Every runner who goes out fast believes this time is different. The opening kilometres are cheap because you are rested, and the cost arrives after thirty when nothing you do makes it back.",
+        "tiktok": "Marathon pacing goes wrong in the first ten minutes. If you are learning how to pace a long run, the first kilometre should be the slowest one you run all day."
+      }
+    }
+  ]
+}

@@ -52,8 +52,9 @@ async function review(outDir, opts = {}) {
 
       // Text overflow: clipped boxes, text outside the canvas, body type outside the safe zone.
       for (const t of a.texts) {
-        if (t.scrollOverflow && t.whiteSpace === 'nowrap') flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" is wider than its box (${t.scrollW} > ${t.clientW})`);
+        if (t.scrollOverflow && t.whiteSpace === 'nowrap' && t.role !== 'credit') flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" is wider than its box (${t.scrollW} > ${t.clientW})`);
         for (const r of t.rects) {
+          if (t.role === 'credit') continue; // deliberately truncated with an ellipsis; the untruncated text lays out wider than its box
           if (!inside(r, canvasBox)) flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" leaves the canvas`);
           else if (!isCover && !inside(r, safeBox)) flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" leaves the 888x1158 safe zone`);
           else if (isCover && t.role === 'headline-line' && (r.x < safeBox.x - 0.5 || r.x + r.w > safeBox.x + safeBox.w + 0.5)) flag(slide, 'text-overflow', `headline line "${t.text}" exceeds the 888 measure`);
@@ -134,8 +135,6 @@ async function review(outDir, opts = {}) {
     if (!RULES.slideCount.includes(n)) flag(0, 'slide-count', `${n} slides`);
     const types = deck.brief.slides.map((s) => s.type);
     if (types[types.length - 1] !== 'cta') flag(n, 'last-slide-cta', `last slide is ${types[types.length - 1]}`);
-    const s2 = deck.brief.slides[0];
-    if (s2 && !(s2.type === 'stat' || /\?\s*$/.test(s2.headline || ''))) flag(2, 'slide-2-stands-alone', 'slide 2 is neither a stat nor a question');
     let run = 1;
     for (let i = 1; i < types.length; i++) { run = types[i] === types[i - 1] ? run + 1 : 1; if (run > RULES.sameComponentRunMax) flag(i + 2, 'component-run', `${types[i]} ${run} times in a row`); }
     // Sources: warned at render time, a hard gate at publish time (README rule 2: every number traces to a source, or the deck blocks).

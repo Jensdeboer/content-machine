@@ -10,6 +10,9 @@ const MIX_QUOTA = { 'full-figure': 14, detail: 3, 'type-led': 2, conceptual: 1 }
 const CUTOUT_WINDOW = 5;   // deck-rules: no cutout repeated within 5 posts
 const POSITION_WINDOW = 5; // cover-grammar ROTATION: no cutout position repeated within five posts
 const MODE_RUN = 3;        // cover-grammar ROTATION: no headline mode three posts running
+const KICKER_RUN = 2;      // deck-rules: no kicker chip two posts running
+const CHIP_WINDOW = 20;    // deck-rules: at most 7 chips per rolling 20 (alongside the 14/3/2/1 mix)
+const CHIP_QUOTA = 7;
 const HASH_DAYS = 90;      // deck-rules quality gate: perceptual-hash check, last 90 days
 
 function readHistory(brandDir) {
@@ -94,6 +97,23 @@ function checkMode(rows, mode) {
   };
 }
 
+// A cover kicker is always a signal chip: no chip two posts running, and at
+// most 7 per rolling 20 (deck-rules, alongside the 14/3/2/1 subject mix).
+function checkKicker(rows, hasKicker) {
+  if (!hasKicker) return { ok: true, rule: 'kicker-rotation', detail: 'no kicker chip on this cover' };
+  const last = rows[rows.length - 1];
+  if (last && last.kicker) {
+    return { ok: false, rule: 'kicker-rotation', detail: `a kicker chip was used last post (${last.deckId}); no chip ${KICKER_RUN} posts running` };
+  }
+  const window = rows.slice(-(CHIP_WINDOW - 1));
+  const count = window.filter((r) => r.kicker).length + 1;
+  return {
+    ok: count <= CHIP_QUOTA,
+    rule: 'kicker-rotation',
+    detail: `a chip would be ${count} of the last ${Math.min(rows.length + 1, CHIP_WINDOW)} posts; quota is ${CHIP_QUOTA} per ${CHIP_WINDOW}`,
+  };
+}
+
 function recentHashes(rows, dateIso, days = HASH_DAYS) {
   const t = Date.parse(dateIso);
   return rows
@@ -107,17 +127,19 @@ function toPostedRow(brief, resolved) {
     deckId: brief.deckId,
     date: brief.date,
     series: brief.series,
+    topic: brief.topic || null,
     ground: brief.cover.ground,
     subject: brief.cover.subject,
     mode: brief.cover.mode,
     cutout: resolved.cutout ? resolved.cutout.id : null,
     position: resolved.position || null,
     signal: brief.cover.signal || null,
+    kicker: resolved.kicker ? resolved.kicker.text : null,
     coverHash: resolved.coverHash || null,
   };
 }
 
 module.exports = {
-  readHistory, groundFamily, checkGround, checkMix, checkCutout, checkPosition, checkMode, recentHashes, toPostedRow,
-  MIX_WINDOW, MIX_QUOTA, CUTOUT_WINDOW, POSITION_WINDOW, MODE_RUN, HASH_DAYS,
+  readHistory, groundFamily, checkGround, checkMix, checkCutout, checkPosition, checkMode, checkKicker, recentHashes, toPostedRow,
+  MIX_WINDOW, MIX_QUOTA, CUTOUT_WINDOW, POSITION_WINDOW, MODE_RUN, KICKER_RUN, CHIP_WINDOW, CHIP_QUOTA, HASH_DAYS,
 };

@@ -1,3 +1,14 @@
+v0.7.2 renderer reconciliation, manifest regression fixed — 7 September 2026
+
+- Regression: the v0.7 wholesale design-folder replace (this file's own v0.7 entry, below) was authored from a snapshot that predated the v0.6/v0.7.1 cutout manifest work and clobbered it. `cutouts.json` had reverted to the old `grammar: "ok"` schema (no `coverage`/`density`/`type-space`/`dense`) and re-listed `fig-medal-bite` and `fig-runner-smiling`, whose PNGs are gone from the repo. Restored the sixteen-entry, computed-field manifest from the pre-replace commit; `$meta.count` corrected to 16.
+- Regression: the same replace reverted `cover-grammar.md` NEGATIVE LIST to "No visible apparel logos … nothing under 30px", undoing the v0.7/v0.7.1 corrections. Reworded back to permit visible apparel logos and the 24px token floor (26px kicker legal), matching this file's own now-restored history below.
+- Renderer: startup validation added (`pipeline/render/lib/cutouts.js`) — every manifest entry's file must exist on disk and every PNG in `00-assets/cutouts/` must have a manifest entry, checked once at manifest load and failing loudly with every offender named.
+- Renderer: `cta`'s footer band, left empty by the v0.7 CTA rebuild, now carries the one line of source credit deck-rules.md requires (mono label, on-accent, left-aligned, truncated with an ellipsis if it overruns) — the ask slot that used to carry it is gone.
+- Renderer: cover kicker chip position is computed from the resolved headline block (`headline-top − chip-height − gap`, else `headline-bottom + gap`) rather than taken as input, and the chip is dropped rather than moving the headline when neither position clears the figure. A cover with a chip may carry no other signal element (checked at brief-validation time, not just by convention).
+- Renderer: kicker-chip rotation added to `posted.jsonl` history checks — no chip two posts running, at most 7 chips per rolling 20 — alongside the existing 14/3/2/1 subject mix.
+- `deck-rules.md`: reworded to state the cover CHROME exception explicitly (P mark only), add the CTA icon exception (banned elsewhere), point the source-credit line at the footer band, and drop the "slide 2 must be a stat or a question" constraint now that any `04-slides` component may open a deck.
+- `examples/PV-01.json` regenerated against the above: no cover kicker, sequential point numbers 01–05 across slides 2–6 (explainer and progress-scale gained eyebrows to complete the run), cta's `ask` removed.
+
 v0.7 slide chrome stripped, CTA icon row, optional cover kicker — 7 September 2026
 
 - Slides: the header row (series title top-left, `NN / 07` counter top-right) is removed from every `04-slides` component and every deck slide. The slide now runs safe-area top → content → footer band (mark left, SWIPE right). Sanctioned unlock of `04-slides` for this change only; the folder is locked again.

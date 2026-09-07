@@ -19,8 +19,9 @@ const qa = require('./qa');
 const ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'brief.schema.json'), 'utf8'));
 
-// Strings the cta template fixes (design/04-slides/cta.dc.html).
-const CTA_DEFAULTS = { wordmark: 'PaceVector', tagline: 'MOVE WITH PURPOSE', handle: '@PACEVECTOR' };
+// Strings the cta template fixes (design/04-slides/cta.dc.html). Constant
+// across every carousel; credit is the slide's only deck input.
+const CTA_DEFAULTS = { wordmark: 'PaceVector', tagline: 'MOVE WITH PURPOSE' };
 
 function parseArgs(argv) {
   const args = { out: path.join(ROOT, 'out'), brand: path.join(ROOT, 'brands', 'pacevector'), qa: true };
@@ -60,7 +61,7 @@ function lintCopy(brief) {
     if (EMOJI.test(t)) blocks.push({ rule: 'no-emoji', detail: `${where}: "${t}"` });
     if (/(^|\s)#\w/.test(t)) blocks.push({ rule: 'no-hashtags', detail: `${where}: "${t}"` });
   }
-  if (words(brief.cover.kicker).length > RULES.kickerWordsMax) blocks.push({ rule: 'kicker-words', detail: `kicker has ${words(brief.cover.kicker).length} words, max ${RULES.kickerWordsMax}` });
+  if (brief.cover.kicker && words(brief.cover.kicker).length > RULES.kickerWordsMax) blocks.push({ rule: 'kicker-words', detail: `kicker has ${words(brief.cover.kicker).length} words, max ${RULES.kickerWordsMax}` });
   return blocks;
 }
 
@@ -71,8 +72,6 @@ function checkStructure(brief) {
   if (!RULES.slideCount.includes(n)) blocks.push({ rule: 'slide-count', detail: `${n} slides; decks are ${RULES.slideCount.join(' or ')}` });
   const last = brief.slides[brief.slides.length - 1];
   if (!last || last.type !== 'cta') blocks.push({ rule: 'last-slide-cta', detail: `last slide is ${last ? last.type : 'missing'}` });
-  const second = brief.slides[0];
-  if (second && !(second.type === 'stat' || /\?\s*$/.test(second.headline || ''))) blocks.push({ rule: 'slide-2-stands-alone', detail: 'slide 2 must be a stat or a question that stands alone' });
   let run = 1;
   for (let i = 1; i < brief.slides.length; i++) {
     run = brief.slides[i].type === brief.slides[i - 1].type ? run + 1 : 1;
@@ -85,6 +84,7 @@ function checkStructure(brief) {
   });
   // Signal validity by ground (cover-grammar SIGNAL).
   const c = brief.cover;
+  if (c.kicker && c.signal) blocks.push({ rule: 'kicker-signal-conflict', detail: 'the kicker chip is already the cover\'s one signal element; signal must be omitted when kicker is set' });
   if (c.signal === 'block' && c.ground !== 'white') blocks.push({ rule: 'signal-ground', detail: 'a signal fill block is white-ground only' });
   if (c.signal === 'type' && c.ground === 'white') blocks.push({ rule: 'signal-ground', detail: 'signal-coloured type is never used on white' });
   if (c.signal === 'mark' && c.subject !== 'conceptual') blocks.push({ rule: 'signal-ground', detail: 'a signal mark belongs to a conceptual device' });
@@ -145,13 +145,15 @@ async function main() {
       const cr = history.checkCutout(rows, cover.resolved.figure.id);
       if (!cr.ok) throw new Blocked([cr]);
     }
+    const kickerCheck = history.checkKicker(rows, !!cover.resolved.kicker);
+    if (!kickerCheck.ok) throw new Blocked([kickerCheck]);
 
     // Body slides.
     const total = brief.slides.length + 1;
     const pages = [{ html: cover.html, type: 'cover' }];
     brief.slides.forEach((slide, i) => {
-      const data = slide.type === 'cta' ? { ...CTA_DEFAULTS, handle: brief.handle || CTA_DEFAULTS.handle, ...slide } : slide;
-      const built = buildSlide(data, { series: brief.series, index: i + 2, total, ctx });
+      const data = slide.type === 'cta' ? { ...slide, ...CTA_DEFAULTS } : slide;
+      const built = buildSlide(data, { ctx });
       pages.push({ html: buildPage({ slideIndex: i + 2, slideType: slide.type, canvasInner: built.canvasInner, canvasStyle: built.canvasStyle }), type: slide.type });
     });
 
@@ -170,11 +172,11 @@ async function main() {
     // Cover hash for the history row and the 90-day check.
     const coverHash = await page.evaluate((uri) => window.__pv.phash(uri), `data:image/jpeg;base64,${fs.readFileSync(files[0]).toString('base64')}`);
     cover.resolved.coverHash = coverHash;
-    const postedRow = history.toPostedRow(brief, { cutout: cover.resolved.figure ? { id: cover.resolved.figure.id } : null, position: cover.resolved.position, coverHash });
+    const postedRow = history.toPostedRow(brief, { cutout: cover.resolved.figure ? { id: cover.resolved.figure.id } : null, position: cover.resolved.position, kicker: cover.resolved.kicker, coverHash });
     const deck = {
       deckId: brief.deckId, date: brief.date, rendered: new Date().toISOString(), brand: path.relative(ROOT, args.brand),
       output: { width: tokens.canvas.width * 2, height: tokens.canvas.height * 2, files: files.map((f) => path.basename(f)) },
-      brief, cover: cover.resolved, historyChecks: { ground: groundCheck, mix, mode, position: posCheck }, postedRow,
+      brief, cover: cover.resolved, historyChecks: { ground: groundCheck, mix, mode, position: posCheck, kicker: kickerCheck }, postedRow,
     };
     fs.writeFileSync(path.join(outDir, 'deck.json'), JSON.stringify(deck, null, 2));
     console.log(`rendered ${files.length} slides to ${path.relative(ROOT, outDir)}/ (${tokens.canvas.width * 2}x${tokens.canvas.height * 2})`);

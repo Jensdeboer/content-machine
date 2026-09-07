@@ -21,9 +21,26 @@ function zoneName(r, c) {
   return ROWS[r] === 'centre' && COLS[c] === 'centre' ? 'centre' : `${ROWS[r]}-${COLS[c]}`;
 }
 
+// Every manifest entry's file must exist; every PNG in the folder must have
+// an entry. Checked once at load so a mismatch fails loudly at startup,
+// naming every offender, instead of crashing mid-render or silently
+// orphaning a file.
+function validateManifest(dir, manifest) {
+  const problems = [];
+  const onDisk = new Set(fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')));
+  const inManifest = new Set();
+  for (const c of manifest.cutouts) {
+    inManifest.add(c.file);
+    if (!onDisk.has(c.file)) problems.push(`cutouts.json lists "${c.id}" -> ${c.file}, which does not exist in ${dir}`);
+  }
+  for (const f of onDisk) if (!inManifest.has(f)) problems.push(`${f} exists in ${dir} but has no entry in cutouts.json`);
+  if (problems.length) throw new Error(`cutout manifest integrity check failed:\n  ${problems.join('\n  ')}`);
+}
+
 function loadManifest(brandDir) {
   const dir = path.join(brandDir, 'design', '00-assets', 'cutouts');
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'cutouts.json'), 'utf8'));
+  validateManifest(dir, manifest);
   const byId = new Map(manifest.cutouts.map((c) => [c.id, c]));
   return { dir, manifest, cutouts: manifest.cutouts, byId };
 }
@@ -109,6 +126,6 @@ function selectCandidates(lib, { subject, ground, hints = {}, exclude = [] }) {
 }
 
 module.exports = {
-  ROWS, COLS, EDGES, zoneName, loadManifest, fileDataUri, allowedOnGround, cropEdgesFromManifest,
+  ROWS, COLS, EDGES, zoneName, loadManifest, validateManifest, fileDataUri, allowedOnGround, cropEdgesFromManifest,
   figureBox, zoneRects, intersects, intersection, area, selectCandidates,
 };
