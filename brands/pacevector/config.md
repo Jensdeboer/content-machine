@@ -168,8 +168,8 @@ a no is out whatever it scored.
 
 ## Telegram
 
-- Bot token: `TELEGRAM_BOT_TOKEN` in `.env` on the box, never in this repo.
-- Chat id: `TELEGRAM_CHAT_ID`.
+- Bot token: `TELEGRAM_TOKEN` in `.env` on the box, never in this repo.
+- Chat id: `TELEGRAM_CHAT`.
 - Stage failures, dead feeds, drift between state.db and posted.jsonl, and the
   run summary all go here. With the variables unset the run still completes:
   messages go to stdout and are recorded on the run row.

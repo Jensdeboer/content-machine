@@ -65,16 +65,16 @@ echo "    path $PATH"
 # same bargain the rest of the pipeline strikes: a missing notifier is never
 # the reason a job fails.
 notify() {
-  if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
-    echo "[telegram: TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID unset, not sent]"
+  if [ -z "${TELEGRAM_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT:-}" ]; then
+    echo "[telegram: TELEGRAM_TOKEN/TELEGRAM_CHAT unset, not sent]"
     echo "$1"
     return 0
   fi
   curl -sS --max-time 15 -o /dev/null \
-    --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+    --data-urlencode "chat_id=${TELEGRAM_CHAT}" \
     --data-urlencode "text=$1" \
     --data-urlencode "disable_web_page_preview=true" \
-    "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
     || echo "[telegram failed to send]"
 }
 
