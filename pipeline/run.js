@@ -398,11 +398,19 @@ async function main() {
 
   const cfg = loadConfig(ROOT, brand);
   const brain = loadBrain(cfg.dir);
+  const backend = process.env.MODELS_BACKEND || 'cli';
+  // A stub run is a rehearsal. It gets its own state database and output
+  // directory so the fixture items never count as "seen" for a real scan,
+  // never consume a deck key, and never overwrite a real deck.
+  if (backend === 'stub') {
+    cfg.run.stateDb = cfg.run.stateDb.replace(/\.db$/, '.stub.db');
+    cfg.run.outDir = path.join(cfg.run.outDir, 'stub');
+  }
   const state = new State(path.join(ROOT, cfg.run.stateDb));
   const tg = new Telegram(cfg.telegram);
   const runId = state.startRun(brand);
-  const summary = { brand, runId, backend: process.env.MODELS_BACKEND || 'cli', stages: {}, briefs: 0, decks: [], deadFeeds: [], drift: [] };
-  log(`run ${runId}: ${brand}, models backend ${summary.backend}`);
+  const summary = { brand, runId, backend, stages: {}, briefs: 0, decks: [], deadFeeds: [], drift: [] };
+  log(`run ${runId}: ${brand}, models backend ${backend}${backend === 'stub' ? ` (state ${cfg.run.stateDb}, output ${cfg.run.outDir})` : ''}`);
 
   try {
     // 0. Drift.

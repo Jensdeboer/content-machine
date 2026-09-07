@@ -8,5 +8,6 @@ out/
 _incoming/
 
 pipeline/state.db
+pipeline/state.stub.db
 
 pipeline/out/

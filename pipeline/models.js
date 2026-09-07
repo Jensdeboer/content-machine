@@ -21,6 +21,7 @@ const { spawn } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const FIXTURES = path.join(__dirname, 'fixtures');
+const KILL_GRACE_MS = 5000;
 
 class ModelError extends Error {
   constructor(message, detail = {}) {
@@ -76,13 +77,17 @@ function runClaude({ modelId, prompt, timeoutMs, allowedTools, cwd }) {
   if (allowedTools && allowedTools.length) args.push('--allowedTools', allowedTools.join(','));
   else args.push('--strict-mcp-config'); // no tools, no MCP servers: a scan call should not browse
 
+  // Runs on this Ubuntu box only (the nightly cron). Plain POSIX: no shell,
+  // SIGTERM on timeout, SIGKILL if the process has not gone within the grace.
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { cwd: cwd || ROOT, stdio: ['pipe', 'pipe', 'pipe'], shell: process.platform === 'win32' });
-    let stdout = '', stderr = '', settled = false;
+    const child = spawn('claude', args, { cwd: cwd || ROOT, stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '', settled = false, killer = null;
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      child.kill('SIGKILL');
+      child.kill('SIGTERM');
+      killer = setTimeout(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); }, KILL_GRACE_MS);
+      killer.unref();
       reject(new ModelError(`claude cli timed out after ${timeoutMs}ms`, { kind: 'timeout', stderr: stderr.slice(-400) }));
     }, timeoutMs);
 
@@ -95,11 +100,12 @@ function runClaude({ modelId, prompt, timeoutMs, allowedTools, cwd }) {
       settled = true; clearTimeout(timer);
       reject(new ModelError(`claude cli could not start: ${e.message}`, { kind: 'spawn' }));
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
+      if (killer) clearTimeout(killer);
       if (settled) return;
       settled = true; clearTimeout(timer);
       if (code !== 0) {
-        return reject(new ModelError(`claude cli exited ${code}`, { kind: 'exit', code, stderr: stderr.slice(-400) }));
+        return reject(new ModelError(`claude cli exited ${signal ? `on ${signal}` : code}`, { kind: 'exit', code, signal, stderr: stderr.slice(-400) }));
       }
       resolve(stdout);
     });
