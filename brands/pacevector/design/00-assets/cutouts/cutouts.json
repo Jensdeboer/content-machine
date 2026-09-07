@@ -1,0 +1,659 @@
+{
+  "$meta": {
+    "note": "type-space, dense, density and coverage are computed from each PNG alpha channel, not judged by eye. The 3x3 grid is relative to the CUTOUT'S OWN alpha bounding box, not the 1080x1350 canvas: after placing a figure, map its zones onto the canvas to find where a headline can sit. type-space lists zones under 15% alpha (safe for type); dense lists zones at or above 55% (never place type there). coverage is mean fill.",
+    "processing": "6 September 2026: the original keyed set (flattened renders keyed on white) removed entirely. Sixteen true cutouts installed; fig-runner-side and fig-runner-bottle removed without replacement.",
+    "count": 18,
+    "version": "0.7",
+    "logos": "Informational only. Visible apparel logos are permitted; the flag is kept so a cover can avoid them when it matters."
+  },
+  "cutouts": [
+    {
+      "id": "fig-sprint-start",
+      "file": "fig-sprint-start.png",
+      "width": 481,
+      "height": 521,
+      "type": "full-figure",
+      "pose": "first stride out of a sprint start, deep lean",
+      "faces": "right",
+      "energy": "high",
+      "crop": "whole body, both feet off the ground",
+      "ground": "both",
+      "logos": true,
+      "note": "Small file: 521 px tall. Use floating, never enlarged.",
+      "coverage": 0.25,
+      "density": [
+        [
+          0.08,
+          0.37,
+          0.39
+        ],
+        [
+          0.02,
+          0.69,
+          0.24
+        ],
+        [
+          0.26,
+          0.23,
+          0.0
+        ]
+      ],
+      "type-space": [
+        "upper-left",
+        "centre-left",
+        "lower-right"
+      ],
+      "dense": [
+        "centre"
+      ]
+    },
+    {
+      "id": "fig-kick",
+      "file": "fig-kick.png",
+      "width": 529,
+      "height": 633,
+      "type": "detail",
+      "pose": "seen from behind, low angle, kicking leg with sole toward camera",
+      "faces": "away",
+      "energy": "high",
+      "crop": "sole and leg dominate, torso small above",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.3,
+      "density": [
+        [
+          0.22,
+          0.44,
+          0.64
+        ],
+        [
+          0.44,
+          0.32,
+          0.4
+        ],
+        [
+          0.0,
+          0.0,
+          0.2
+        ]
+      ],
+      "type-space": [
+        "lower-left",
+        "lower-centre"
+      ],
+      "dense": [
+        "upper-right"
+      ]
+    },
+    {
+      "id": "fig-stretch-seated",
+      "file": "fig-stretch-seated.png",
+      "width": 1145,
+      "height": 1389,
+      "type": "full-figure",
+      "pose": "seated forward fold, both hands holding one shoe",
+      "faces": "down",
+      "energy": "low",
+      "crop": "whole body, cropped below the shoes",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.64,
+      "density": [
+        [
+          0.13,
+          0.93,
+          0.14
+        ],
+        [
+          0.82,
+          1.0,
+          0.87
+        ],
+        [
+          0.44,
+          0.97,
+          0.46
+        ]
+      ],
+      "type-space": [
+        "upper-left",
+        "upper-right"
+      ],
+      "dense": [
+        "upper-centre",
+        "centre-left",
+        "centre",
+        "centre-right",
+        "lower-centre"
+      ]
+    },
+    {
+      "id": "fig-shoe-shoulder",
+      "file": "fig-shoe-shoulder.png",
+      "width": 625,
+      "height": 658,
+      "type": "detail",
+      "pose": "profile torso, spike plate carried over the shoulder",
+      "faces": "right",
+      "energy": "low",
+      "crop": "torso and shoe, cropped at the waist",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.76,
+      "density": [
+        [
+          0.47,
+          0.79,
+          0.58
+        ],
+        [
+          0.89,
+          1.0,
+          0.63
+        ],
+        [
+          0.61,
+          1.0,
+          0.89
+        ]
+      ],
+      "type-space": [],
+      "dense": [
+        "upper-centre",
+        "upper-right",
+        "centre-left",
+        "centre",
+        "centre-right",
+        "lower-left",
+        "lower-centre",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-tying",
+      "file": "fig-tying.png",
+      "width": 581,
+      "height": 900,
+      "type": "full-figure",
+      "pose": "crouched, pulling one shoe up to the chest",
+      "faces": "down",
+      "energy": "low",
+      "crop": "whole body, cropped at the foot",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.46,
+      "density": [
+        [
+          0.06,
+          0.62,
+          0.78
+        ],
+        [
+          0.36,
+          0.85,
+          0.51
+        ],
+        [
+          0.51,
+          0.41,
+          0.04
+        ]
+      ],
+      "type-space": [
+        "upper-left",
+        "lower-right"
+      ],
+      "dense": [
+        "upper-centre",
+        "upper-right",
+        "centre"
+      ]
+    },
+    {
+      "id": "fig-quad-stretch",
+      "file": "fig-quad-stretch.png",
+      "width": 645,
+      "height": 828,
+      "type": "full-figure",
+      "pose": "standing quad stretch, one foot held behind, shot from below",
+      "faces": "up",
+      "energy": "low",
+      "crop": "whole body, cropped at the standing shin",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.47,
+      "density": [
+        [
+          0.08,
+          0.46,
+          0.28
+        ],
+        [
+          0.35,
+          0.87,
+          0.63
+        ],
+        [
+          0.0,
+          0.65,
+          0.9
+        ]
+      ],
+      "type-space": [
+        "upper-left",
+        "lower-left"
+      ],
+      "dense": [
+        "centre",
+        "centre-right",
+        "lower-centre",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-bent-over",
+      "file": "fig-bent-over.png",
+      "width": 974,
+      "height": 1254,
+      "type": "full-figure",
+      "pose": "bent double, hand reaching to the ground",
+      "faces": "down",
+      "energy": "low",
+      "crop": "whole body, cropped at the shoes",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.49,
+      "density": [
+        [
+          0.47,
+          0.91,
+          0.43
+        ],
+        [
+          0.54,
+          0.56,
+          0.26
+        ],
+        [
+          0.29,
+          0.49,
+          0.47
+        ]
+      ],
+      "type-space": [],
+      "dense": [
+        "upper-centre",
+        "centre"
+      ]
+    },
+    {
+      "id": "fig-seated-reach-side",
+      "file": "fig-seated-reach-side.png",
+      "width": 633,
+      "height": 431,
+      "type": "full-figure",
+      "pose": "seated hamstring reach, side view",
+      "faces": "right, head down",
+      "energy": "low",
+      "crop": "whole body, low and wide",
+      "ground": "both",
+      "logos": false,
+      "note": "Small file: 431 px tall.",
+      "coverage": 0.39,
+      "density": [
+        [
+          0.15,
+          0.43,
+          0.0
+        ],
+        [
+          0.6,
+          0.41,
+          0.19
+        ],
+        [
+          0.82,
+          0.47,
+          0.4
+        ]
+      ],
+      "type-space": [
+        "upper-right"
+      ],
+      "dense": [
+        "centre-left",
+        "lower-left"
+      ]
+    },
+    {
+      "id": "fig-seated-reach",
+      "file": "fig-seated-reach.png",
+      "width": 1126,
+      "height": 1407,
+      "type": "full-figure",
+      "pose": "seated hamstring reach, three-quarter view, hand on the shoe",
+      "faces": "down",
+      "energy": "low",
+      "crop": "whole body, cropped at the hair",
+      "ground": "both",
+      "logos": true,
+      "coverage": 0.52,
+      "density": [
+        [
+          0.66,
+          0.56,
+          0.14
+        ],
+        [
+          0.96,
+          0.69,
+          0.44
+        ],
+        [
+          0.17,
+          0.41,
+          0.66
+        ]
+      ],
+      "type-space": [
+        "upper-right"
+      ],
+      "dense": [
+        "upper-left",
+        "upper-centre",
+        "centre-left",
+        "centre",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-sole-stretch",
+      "file": "fig-sole-stretch.png",
+      "width": 600,
+      "height": 788,
+      "type": "detail",
+      "pose": "hamstring stretch shot from the foot, sole filling the frame, face behind",
+      "faces": "camera",
+      "energy": "low",
+      "crop": "sole and torso, cropped left and right",
+      "ground": "both",
+      "logos": false,
+      "note": "Cropped on both sides: place with one side on a canvas edge.",
+      "coverage": 0.48,
+      "density": [
+        [
+          0.26,
+          0.78,
+          0.15
+        ],
+        [
+          0.89,
+          0.81,
+          0.33
+        ],
+        [
+          0.65,
+          0.47,
+          0.0
+        ]
+      ],
+      "type-space": [
+        "lower-right"
+      ],
+      "dense": [
+        "upper-centre",
+        "centre-left",
+        "centre",
+        "lower-left"
+      ]
+    },
+    {
+      "id": "fig-runner-low",
+      "file": "fig-runner-low.png",
+      "width": 456,
+      "height": 869,
+      "type": "full-figure",
+      "pose": "running, shot from below, arm swinging toward camera",
+      "faces": "right",
+      "energy": "high",
+      "crop": "torso and arm, cropped at the hips",
+      "ground": "both",
+      "logos": false,
+      "coverage": 0.62,
+      "density": [
+        [
+          0.35,
+          0.92,
+          0.13
+        ],
+        [
+          0.45,
+          1.0,
+          0.35
+        ],
+        [
+          0.8,
+          0.95,
+          0.67
+        ]
+      ],
+      "type-space": [
+        "upper-right"
+      ],
+      "dense": [
+        "upper-centre",
+        "centre",
+        "lower-left",
+        "lower-centre",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-sole-forward",
+      "file": "fig-sole-forward.png",
+      "width": 824,
+      "height": 1247,
+      "type": "detail",
+      "pose": "seated stretch, sole pushed toward camera",
+      "faces": "camera",
+      "energy": "low",
+      "crop": "whole body, sole in front",
+      "ground": "both",
+      "logos": true,
+      "note": "Face-forward and smiling; approved for detail use with the face cropped or covered.",
+      "coverage": 0.47,
+      "density": [
+        [
+          0.0,
+          0.45,
+          0.67
+        ],
+        [
+          0.19,
+          0.85,
+          0.84
+        ],
+        [
+          0.2,
+          0.33,
+          0.72
+        ]
+      ],
+      "type-space": [
+        "upper-left"
+      ],
+      "dense": [
+        "upper-right",
+        "centre",
+        "centre-right",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-portrait-visor",
+      "file": "fig-portrait-visor.png",
+      "width": 736,
+      "height": 1104,
+      "type": "detail",
+      "pose": "close portrait, visor sunglasses, sweat",
+      "faces": "camera",
+      "energy": "high",
+      "crop": "head and shoulders, bleeds all four edges",
+      "ground": "both",
+      "logos": true,
+      "note": "Face-forward portrait; approved as a full-bleed detail.",
+      "coverage": 0.78,
+      "density": [
+        [
+          0.25,
+          1.0,
+          0.71
+        ],
+        [
+          0.52,
+          1.0,
+          0.8
+        ],
+        [
+          0.75,
+          1.0,
+          1.0
+        ]
+      ],
+      "type-space": [],
+      "dense": [
+        "upper-centre",
+        "upper-right",
+        "centre",
+        "centre-right",
+        "lower-left",
+        "lower-centre",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-towel",
+      "file": "fig-towel.png",
+      "width": 561,
+      "height": 705,
+      "type": "full-figure",
+      "pose": "standing, towel over the head, arms out",
+      "faces": "camera",
+      "energy": "mid",
+      "crop": "whole body, cropped at the shins",
+      "ground": "both",
+      "logos": true,
+      "note": "Visible waistband logo.",
+      "coverage": 0.32,
+      "density": [
+        [
+          0.0,
+          0.34,
+          0.5
+        ],
+        [
+          0.0,
+          0.63,
+          0.44
+        ],
+        [
+          0.36,
+          0.18,
+          0.43
+        ]
+      ],
+      "type-space": [
+        "upper-left",
+        "centre-left"
+      ],
+      "dense": [
+        "centre"
+      ]
+    },
+    {
+      "id": "fig-cap-bottle",
+      "file": "fig-cap-bottle.png",
+      "width": 216,
+      "height": 294,
+      "type": "detail",
+      "pose": "pouring a bottle over a red cap",
+      "faces": "right",
+      "energy": "mid",
+      "crop": "head and shoulders",
+      "ground": "both",
+      "logos": true,
+      "note": "Preview-size file, 294 px. Slide use only until a larger export arrives.",
+      "coverage": 0.39,
+      "density": [
+        [
+          0.56,
+          0.38,
+          0.0
+        ],
+        [
+          0.19,
+          0.78,
+          0.68
+        ],
+        [
+          0.0,
+          0.07,
+          0.87
+        ]
+      ],
+      "type-space": [
+        "upper-right",
+        "lower-left",
+        "lower-centre"
+      ],
+      "dense": [
+        "upper-left",
+        "centre",
+        "centre-right",
+        "lower-right"
+      ]
+    },
+    {
+      "id": "fig-vintage-runner",
+      "file": "fig-vintage-runner.png",
+      "width": 337,
+      "height": 592,
+      "type": "full-figure",
+      "pose": "1970s track runner, race bib",
+      "faces": "right",
+      "energy": "high",
+      "crop": "whole body",
+      "ground": "white",
+      "logos": true,
+      "note": "Recognisable athlete and bib; preview-size file, 592 px.",
+      "coverage": 0.26,
+      "density": [
+        [
+          0.0,
+          0.73,
+          0.09
+        ],
+        [
+          0.05,
+          0.8,
+          0.2
+        ],
+        [
+          0.3,
+          0.15,
+          0.0
+        ]
+      ],
+      "type-space": [
+        "upper-left",
+        "upper-right",
+        "centre-left",
+        "lower-right"
+      ],
+      "dense": [
+        "upper-centre",
+        "centre"
+      ]
+    }
+  ]
+}

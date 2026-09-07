@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="../01-tokens/tokens.css"><link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=IBM+Plex+Sans:ital,wght@0,400;1,300&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet"><style>body{margin:0;background:var(--pv-color-line);-webkit-font-smoothing:antialiased}a{color:var(--pv-color-accent)}a:hover{color:var(--pv-color-ink)}</style></helmet>
+<div style="padding:32px;display:flex;flex-direction:column;gap:24px;font-family:var(--pv-font-body);color:var(--pv-color-ink)">
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <span style="font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:11px;letter-spacing:var(--pv-track-label);color:var(--pv-color-accent-ink)">05-CHROME / FOOTER</span>
+    <h1 style="margin:0;font-family:var(--pv-font-display);font-weight:var(--pv-weight-display-semi);font-size:28px;letter-spacing:var(--pv-track-headline)">Slide footer</h1>
+    <p style="margin:0;font-size:13px;line-height:var(--pv-lead-copy);color:var(--pv-color-ink-soft);max-width:720px">Mark left and centred on the 96 footer zone, mono label right. Shown at slide-space scale 0.4 on each ground the board uses for it.</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:20px;max-width:1120px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="width:432px;height:48px;overflow:hidden;background:var(--pv-color-ground);border:1px solid var(--pv-color-line)"><div style="width:var(--pv-canvas-width);height:var(--pv-footer-height);transform:scale(.4);transform-origin:0 0;box-sizing:border-box;padding:0 var(--pv-space-96);display:flex;justify-content:space-between;align-items:center"><span style="color:var(--pv-color-accent-ink);display:flex"><svg viewBox="0 0 100 100" width="44" height="44" fill="currentColor"><rect x="20" y="16" width="15" height="68" fill="var(--pv-color-mute)"></rect><polygon points="35,16 66,16 88,38 66,60 35,60 35,45 60,45 67,38 60,31 35,31"></polygon></svg></span><span style="font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:var(--pv-size-label);letter-spacing:var(--pv-track-label);color:var(--pv-color-mute)">SWIPE →</span></div></div>
+      <p style="margin:0;font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:11px;letter-spacing:.04em;color:var(--pv-color-mute)">ON GROUND · INFORMATION SLIDES</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="width:432px;height:48px;overflow:hidden;background:var(--pv-color-accent)"><div style="width:var(--pv-canvas-width);height:var(--pv-footer-height);transform:scale(.4);transform-origin:0 0;box-sizing:border-box;padding:0 var(--pv-space-96);display:flex;justify-content:space-between;align-items:center"><span style="color:var(--pv-color-on-accent);display:flex"><svg viewBox="0 0 100 100" width="44" height="44" fill="currentColor"><rect x="20" y="16" width="15" height="68" fill="var(--pv-color-mute-inv)"></rect><polygon points="35,16 66,16 88,38 66,60 35,60 35,45 60,45 67,38 60,31 35,31"></polygon></svg></span><span style="font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:var(--pv-size-label);letter-spacing:var(--pv-track-label);color:var(--pv-color-on-accent)">@PACEVECTOR</span></div></div>
+      <p style="margin:0;font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:11px;letter-spacing:.04em;color:var(--pv-color-mute)">ON ACCENT · CTA SLIDE</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="width:432px;height:48px;overflow:hidden;background:var(--pv-color-ground-alt)"><div style="width:var(--pv-canvas-width);height:var(--pv-footer-height);transform:scale(.4);transform-origin:0 0;box-sizing:border-box;padding:0 var(--pv-space-96);display:flex;justify-content:flex-end;align-items:center"><span style="font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:var(--pv-size-label);letter-spacing:var(--pv-track-wide);color:var(--pv-color-accent-ink)">SWIPE →</span></div></div>
+      <p style="margin:0;font-family:var(--pv-font-data);font-weight:var(--pv-weight-data);font-size:11px;letter-spacing:.04em;color:var(--pv-color-mute)">ON GROUND-ALT · COVERS · MARK MOVES TO THE HEADER, NO CHIP, NO HANDLE</p>
+    </div>
+  </div>
+  <div style="background:var(--pv-color-ground);border:1px solid var(--pv-color-line);padding:20px 24px;max-width:1120px;box-sizing:border-box">
+    <p style="margin:0;font-size:13px;line-height:var(--pv-lead-copy);color:var(--pv-color-ink-soft)">The footer zone is 96, aligned to the slide margin, with the mark centred on it.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
