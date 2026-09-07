@@ -106,8 +106,9 @@ endpoint - see Publishing above.
 
 ## Kill switch
 
-- `publishing_enabled` - one row, flippable from the review page. Off means no
-  packets and no inbox pushes until flipped back.
+- `publishing_enabled`: yes. The switch is this key, flipped by hand. Off
+  means no packets and no inbox pushes until it is flipped back;
+  `pipeline/packet.js` reads it before it does anything else.
 
 ## Models
 

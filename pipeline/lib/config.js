@@ -136,6 +136,27 @@ function loadConfig(root, brand) {
     outDir: cfg.value('Run settings', 'Output directory'),
   };
 
+  // --- Kill switch --------------------------------------------------------
+  // Read by packet.js before anything else. Off means no packet and no push.
+  cfg.publishing = { enabled: cfg.bool('Kill switch', 'publishing_enabled') };
+
+  // --- Provider -----------------------------------------------------------
+  // The three provider strings are documented in "## Provider" and read from
+  // there, profile name included: it is case sensitive, it is not the handle,
+  // and a copy of it in code is a second place to get it wrong.
+  const bare = (v) => String(v).replace(/`/g, '').trim();
+  const providerRows = cfg.table('Provider', { header: 'Where' });
+  const userRow = providerRows.find((r) => r.length >= 2 && /provider/.test(slug(r[0])) && /user/.test(slug(r[0])));
+  if (!userRow) throw new Error('config.md "## Provider" has no "Provider `user` parameter" row');
+  const endpoint = bare(cfg.value('Provider', 'Photo endpoint')).split(/\s+/);
+  const keyEnv = (bare(cfg.value('Provider', 'Auth header')).match(/<([A-Z0-9_]+)>/) || [])[1];
+  if (!keyEnv) throw new Error('config.md "## Provider" auth header names no <ENV_VAR> for the key');
+  cfg.provider = {
+    user: bare(userRow[1]),
+    photoUrl: endpoint[endpoint.length - 1],
+    keyEnv,
+  };
+
   // --- Telegram -----------------------------------------------------------
   const envName = (v) => v.replace(/`/g, '').split(/\s+/)[0].replace(/[^A-Z0-9_]+$/i, '');
   cfg.telegram = {

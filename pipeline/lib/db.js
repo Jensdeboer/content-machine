@@ -73,10 +73,13 @@ CREATE TABLE IF NOT EXISTS decks (
   brief_id     INTEGER REFERENCES briefs(id),
   deck_key     TEXT NOT NULL UNIQUE,
   topic        TEXT,
-  status       TEXT NOT NULL,              -- pending | blocked | needs_attention | published
+  status       TEXT NOT NULL,              -- pending | packet_sent | blocked | needs_attention | published
   reason       TEXT,
   out_dir      TEXT,
   review       TEXT,                       -- qa review.json
+  draft_id     TEXT,                       -- the provider's id for the pushed TikTok draft
+  draft_pushed_at TEXT,                    -- set once the push succeeded; the push is not repeated
+  packet_sent_at TEXT,                     -- when packet.js sent the deck to Telegram
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL
 );
@@ -115,6 +118,17 @@ class State {
     this.db = new DatabaseSync(file);
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  // CREATE TABLE IF NOT EXISTS leaves an existing state.db on its old shape, so
+  // columns added after a table first shipped are added here. Additive only:
+  // this file may never drop what a previous run recorded.
+  migrate() {
+    const columns = this.db.prepare('PRAGMA table_info(decks)').all().map((c) => c.name);
+    for (const col of ['draft_id', 'draft_pushed_at', 'packet_sent_at']) {
+      if (!columns.includes(col)) this.db.exec(`ALTER TABLE decks ADD COLUMN ${col} TEXT`);
+    }
   }
 
   close() { this.db.close(); }
@@ -189,6 +203,39 @@ class State {
 
   deckKeys() {
     return this.db.prepare('SELECT deck_key FROM decks').all().map((r) => r.deck_key);
+  }
+
+  // The packet takes the oldest deck still waiting for one. Brand lives on the
+  // run, and series on the brief, so the header line costs one join each.
+  oldestPendingDeck(brand) {
+    return this.db.prepare(`SELECT d.deck_key, d.topic, d.out_dir, d.reason, d.created_at,
+                                   d.draft_id, d.draft_pushed_at,
+                                   b.series, b.captions
+                            FROM decks d
+                            JOIN runs r ON r.id = d.run_id
+                            LEFT JOIN briefs b ON b.id = d.brief_id
+                            WHERE d.status = 'pending' AND r.brand = ?
+                            ORDER BY d.created_at, d.id
+                            LIMIT 1`).get(brand) || null;
+  }
+
+  // The push happened, and it happens once. Written the moment the provider
+  // accepts, so a failure anywhere after it cannot cost us the knowledge that
+  // the draft already exists: a re-run reads this and skips the push.
+  markDraftPushed(deckKey, draftId) {
+    const t = now();
+    this.db.prepare('UPDATE decks SET draft_id = ?, draft_pushed_at = ?, updated_at = ? WHERE deck_key = ?')
+      .run(draftId || null, t, t, deckKey);
+    return t;
+  }
+
+  // Sent, not posted: the deck is out of the queue and in the phone. The
+  // confirm step is what later marks it published.
+  markPacketSent(deckKey) {
+    const t = now();
+    this.db.prepare("UPDATE decks SET status = 'packet_sent', packet_sent_at = ?, updated_at = ? WHERE deck_key = ?")
+      .run(t, t, deckKey);
+    return t;
   }
 
   publishedDecks() {
