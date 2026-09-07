@@ -1,0 +1,217 @@
+{
+  "$note": "Dimensions the locked templates in design/04-slides, 03-covers and 05-chrome hard-code without a token. Copied verbatim, one entry per template value, so no pixel size lives in renderer code. Unitless numbers are slide-space px at 1080x1350 unless the key says otherwise. When a value appears in tokens.json the renderer reads the token instead and it is not listed here.",
+  "mark": {
+    "cover": 64,
+    "footer": 44,
+    "cta": 240,
+    "viewBox": "0 0 100 100",
+    "stem": {
+      "x": 20,
+      "y": 16,
+      "width": 15,
+      "height": 68
+    },
+    "arrow": "35,16 66,16 88,38 66,60 35,60 35,45 60,45 67,38 60,31 35,31"
+  },
+  "rule": {
+    "slide": 3,
+    "cover": 6
+  },
+  "leading": {
+    "shout": 0.92,
+    "sentence": 1,
+    "number": 0.9,
+    "payoff": 1,
+    "hero": 1,
+    "compareHeadline": 1.05,
+    "metricsPhrase": 1.2,
+    "checklistItem": 1.35,
+    "ctaAsk": 1.4,
+    "monoRow": 2.1
+  },
+  "copyMaxWidth": 820,
+  "ctaAskMaxWidth": 640,
+  "checklist": {
+    "marker": 20,
+    "markerOffset": 16,
+    "labelColumn": 120
+  },
+  "progressScale": {
+    "barHeight": 16,
+    "markerWidth": 4,
+    "markerHeight": 32,
+    "markerOffset": -8
+  },
+  "tickRuler": {
+    "height": 40,
+    "stroke": 3,
+    "accentStroke": 6,
+    "majorPad": 6,
+    "minorPad": 12
+  },
+  "chart": {
+    "height": 300,
+    "annotatedHeight": 340,
+    "plotBottom": 290,
+    "axisStroke": 3,
+    "lineStroke": 6,
+    "refStroke": 3,
+    "refDash": "10 10",
+    "dotRadius": 10,
+    "labelSize": 26,
+    "axisLabelSize": 24,
+    "axisLabelY": 330,
+    "twoSeries": {
+      "height": 420,
+      "plotBottom": 400,
+      "gridStroke": 3,
+      "axisStroke": 4,
+      "plannedStroke": 5,
+      "plannedDash": "14 14",
+      "actualStroke": 10,
+      "dotRadius": 14
+    }
+  },
+  "pullArrow": {
+    "height": 24,
+    "stroke": 3,
+    "headWidth": 20
+  },
+  "figurePanel": {
+    "narrow": {
+      "width": 330,
+      "height": 760,
+      "imageHeight": 700
+    },
+    "wide": {
+      "width": 430,
+      "height": 1000,
+      "imageHeight": 940
+    }
+  },
+  "cover": {
+    "typeLed": {
+      "ruleCutGap": 20,
+      "hairlineGap": 40,
+      "payoffBottomInset": 56
+    },
+    "concept": {
+      "paceLine": {
+        "top": 230,
+        "height": 360,
+        "headlineTop": 540,
+        "plannedStroke": 6,
+        "plannedDash": "18 18",
+        "plannedOpacity": 0.55,
+        "actualStroke": 12,
+        "dotRadius": 16,
+        "planned": [
+          [
+            0,
+            120
+          ],
+          [
+            222,
+            126
+          ],
+          [
+            444,
+            120
+          ],
+          [
+            666,
+            124
+          ],
+          [
+            888,
+            122
+          ]
+        ],
+        "actual": [
+          [
+            0,
+            40
+          ],
+          [
+            222,
+            64
+          ],
+          [
+            444,
+            120
+          ],
+          [
+            666,
+            240
+          ],
+          [
+            888,
+            330
+          ]
+        ]
+      },
+      "splitRuler": {
+        "top": 320,
+        "height": 80,
+        "headlineTop": 520,
+        "stroke": 6,
+        "majorHalf": 26,
+        "minorHalf": 14,
+        "ticks": [
+          0,
+          148,
+          296,
+          444,
+          592,
+          740,
+          886
+        ]
+      },
+      "markedKm": {
+        "top": 1060,
+        "height": 60,
+        "headlineTop": 280,
+        "stroke": 6,
+        "lineOpacity": 0.5,
+        "tickStroke": 14,
+        "at": 0.757
+      },
+      "threeZones": {
+        "top": 420,
+        "height": 120,
+        "headlineTop": 640,
+        "weights": [
+          8,
+          4,
+          8
+        ]
+      },
+      "effortCurve": {
+        "top": 280,
+        "height": 400,
+        "headlineTop": 760,
+        "axisStroke": 6,
+        "curveStroke": 14,
+        "path": "M0 366 C 300 356, 560 300, 700 150 S 850 30, 888 8",
+        "plotBottom": 380
+      },
+      "effortDots": {
+        "top": 1040,
+        "height": 60,
+        "headlineTop": 300,
+        "radius": 18,
+        "stroke": 6,
+        "pitch": 80,
+        "first": 20,
+        "total": 10
+      }
+    },
+    "signalBlock": {
+      "rightInset": 80,
+      "pad": 20,
+      "$from": "03-covers/cover-type-led.dc.html 04: block left 0, width 1000 (= canvas 1080 - 80), 20 above the line box"
+    },
+    "asideGap": 32,
+    "kickerLineHeight": 1.2
+  }
+}
