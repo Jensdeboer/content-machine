@@ -223,7 +223,7 @@
     },
     "postedRow": {
       "type": "object",
-      "description": "One line of brands/<brand>/memory/posted.jsonl, appended by the publish step from out/<deckId>/deck.json postedRow. The renderer reads: ground (alternation), subject (14/3/2/1 mix over 20), mode (no run of three), cutout (no repeat within 5), position (no repeat within 5), date + coverHash (90-day perceptual hash).",
+      "description": "One line of brands/<brand>/memory/posted.jsonl, appended by the publish step from out/<deckId>/deck.json postedRow. The renderer reads: ground (alternation), subject (14/3/2/1 mix over 20), mode (no run of three), cutout (no repeat within 5), position (no repeat within 5), date + coverHash (90-day perceptual hash). The packet reads: sound (no repeat two posts running, longest-ago-used preferred).",
       "required": ["deckId", "date", "ground", "subject", "mode"],
       "properties": {
         "deckId": { "type": "string" },
@@ -237,7 +237,8 @@
         "position": { "type": ["string", "null"], "description": "Figure position label, e.g. bottom-right." },
         "signal": { "type": ["string", "null"] },
         "kicker": { "type": ["string", "null"], "description": "Chip text if the cover carried a kicker chip (dropped covers record null), for the chip rotation check: no chip two posts running, at most 7 per rolling 20." },
-        "coverHash": { "type": ["string", "null"], "description": "16 hex chars, 64-bit DCT perceptual hash of 01.jpg." }
+        "coverHash": { "type": ["string", "null"], "description": "16 hex chars, 64-bit DCT perceptual hash of 01.jpg." },
+        "sound": { "type": ["string", "null"], "description": "The sound the packet suggested for this deck, by name as it appears in sounds.md; null when the shortlist was empty. Written into deck.json postedRow by the packet, so the confirm step carries it to posted.jsonl." }
       }
     }
   }

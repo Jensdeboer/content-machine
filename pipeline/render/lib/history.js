@@ -136,6 +136,7 @@ function toPostedRow(brief, resolved) {
     signal: brief.cover.signal || null,
     kicker: resolved.kicker ? resolved.kicker.text : null,
     coverHash: resolved.coverHash || null,
+    sound: null, // filled in by the packet when it suggests one (pipeline/lib/sounds.js)
   };
 }
 

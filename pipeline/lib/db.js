@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS decks (
   draft_id     TEXT,                       -- the provider's id for the pushed TikTok draft
   draft_pushed_at TEXT,                    -- set once the push succeeded; the push is not repeated
   packet_sent_at TEXT,                     -- when packet.js sent the deck to Telegram
+  sound        TEXT,                       -- the sound the packet suggested; the rotation rule reads it back
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL
 );
@@ -126,7 +127,7 @@ class State {
   // this file may never drop what a previous run recorded.
   migrate() {
     const columns = this.db.prepare('PRAGMA table_info(decks)').all().map((c) => c.name);
-    for (const col of ['draft_id', 'draft_pushed_at', 'packet_sent_at']) {
+    for (const col of ['draft_id', 'draft_pushed_at', 'packet_sent_at', 'sound']) {
       if (!columns.includes(col)) this.db.exec(`ALTER TABLE decks ADD COLUMN ${col} TEXT`);
     }
   }
@@ -237,12 +238,23 @@ class State {
   }
 
   // Sent, not posted: the deck is out of the queue and in the phone. The
-  // confirm step is what later marks it published.
-  markPacketSent(deckKey) {
+  // confirm step is what later marks it published. The suggested sound is
+  // recorded here, on the deck, because that is what the rotation rule reads.
+  markPacketSent(deckKey, { sound = null } = {}) {
     const t = now();
-    this.db.prepare("UPDATE decks SET status = 'packet_sent', packet_sent_at = ?, updated_at = ? WHERE deck_key = ?")
-      .run(t, t, deckKey);
+    this.db.prepare("UPDATE decks SET status = 'packet_sent', packet_sent_at = ?, sound = ?, updated_at = ? WHERE deck_key = ?")
+      .run(t, sound, t, deckKey);
     return t;
+  }
+
+  // Every deck a packet went out for, oldest first, with the sound suggested
+  // (null when the shortlist was empty). The sound rule merges this with
+  // posted.jsonl.
+  soundHistory(brand) {
+    return this.db.prepare(`SELECT d.deck_key, d.sound, d.packet_sent_at
+                            FROM decks d JOIN runs r ON r.id = d.run_id
+                            WHERE d.packet_sent_at IS NOT NULL AND r.brand = ?
+                            ORDER BY d.packet_sent_at, d.id`).all(brand);
   }
 
   publishedDecks() {

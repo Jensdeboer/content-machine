@@ -24,6 +24,8 @@ const { loadConfig } = require('./lib/config');
 const { State } = require('./lib/db');
 const { Telegram } = require('./lib/telegram');
 const provider = require('./lib/provider');
+const { readPosted } = require('./lib/brain');
+const sounds = require('./lib/sounds');
 
 const ROOT = path.resolve(__dirname, '..');
 const log = (...a) => console.log(...a);
@@ -108,35 +110,36 @@ function publishGate(cfg, deck) {
 }
 
 // --------------------------------------------------------------------------
-// The sound. sounds.md is the week's shortlist, rewritten every Sunday:
-//   | # | Sound | Platform | Why it fits | Used on |
-// A suggestion only: the sound is picked in the app at the last tap, and this
-// script never writes the file back.
+// The sound. sounds.md is the week's shortlist, edited by hand, columns by
+// header name (pipeline/lib/sounds.js). Which sound went with which deck is
+// history, not a column in that file: the packet records it on the deck row in
+// state.db and in deck.json's postedRow, which the confirm step appends to
+// posted.jsonl. The rotation rule reads from those two places. A suggestion
+// only: the sound is picked in the app at the last tap.
 // --------------------------------------------------------------------------
-function suggestSound(brandDir) {
-  const file = path.join(brandDir, 'sounds.md');
-  if (!fs.existsSync(file)) return null;
-  const rows = [];
-  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*\|(.+)\|\s*$/);
-    if (!m) continue;
-    const c = m[1].split('|').map((s) => s.trim());
-    if (c.every((x) => /^:?-{2,}:?$/.test(x))) continue;   // rule
-    if (/^sound$/i.test(c[1] || '')) continue;             // header
-    if (!c[1]) continue;                                   // an unfilled template row
-    rows.push({ sound: c[1], platform: c[2] || '', why: c[3] || '', usedOn: c[4] || '' });
-  }
-  if (!rows.length) return null;
-  // Never the same sound two days running: an unused one first, in shortlist
-  // order, and otherwise the one used longest ago.
-  const unused = rows.find((r) => !r.usedOn);
-  return unused || rows.slice().sort((a, b) => a.usedOn.localeCompare(b.usedOn))[0];
+function suggestSound(cfg, state, brand) {
+  const shortlist = sounds.readShortlist(cfg.dir);
+  const history = sounds.soundHistory(readPosted(cfg.dir), state.soundHistory(brand));
+  return sounds.pickSound(shortlist, history);
 }
 
-function soundLine(sound) {
-  if (!sound) return 'Sound: sounds.md has no shortlist this week — pick one in the app.';
-  const head = [sound.sound, sound.platform && `(${sound.platform})`].filter(Boolean).join(' ');
-  return `Sound: ${head}${sound.why ? `\n${sound.why}` : ''}`;
+function soundLine(pick) {
+  if (!pick.row) return `Sound: none suggested — ${pick.reason}. Pick one in the app.`;
+  const r = pick.row;
+  const head = [r.sound, r.artist && `— ${r.artist}`, r.platform && `(${r.platform})`].filter(Boolean).join(' ');
+  return `Sound: ${head}${r.notes ? `\n${r.notes}` : ''}`;
+}
+
+// The postedRow the confirm step will append gets the sound, so posted.jsonl
+// carries it alongside ground and cutout. A deck whose deck.json is gone is
+// still packetable; state.db then holds the only record.
+function recordSoundInDeckJson(dir, sound) {
+  const file = path.join(dir, 'deck.json');
+  if (!fs.existsSync(file)) return false;
+  const deck = JSON.parse(fs.readFileSync(file, 'utf8'));
+  deck.postedRow = { ...(deck.postedRow || {}), sound };
+  fs.writeFileSync(file, JSON.stringify(deck, null, 2));
+  return true;
 }
 
 // --------------------------------------------------------------------------
@@ -199,8 +202,10 @@ async function main() {
     const dir = deckDir(cfg, deck);
     const slides = readSlides(dir);
     const captions = readCaptions(deck, dir);
-    const sound = suggestSound(cfg.dir);
+    const pick = suggestSound(cfg, state, brand);
+    const sound = pick.row ? pick.row.sound : null;
     log(`${deck.deck_key} (${deck.topic}): ${slides.length} slides from ${dir}`);
+    log(pick.row ? `sound: "${sound}" (${pick.check.detail}${pick.lastUsed ? `; last used ${pick.lastUsed}` : '; unused'})` : `sound: none — ${pick.reason}`);
 
     // 3. The TikTok drafts, before the packet: the phone should find them
     //    already there. Pushed at most once per deck ever — the draft id and
@@ -228,7 +233,7 @@ async function main() {
     //    at the top, where it cannot be missed at 14:00, and once at the end
     //    where the sound belongs.
     const headerLines = [];
-    if (!sound) headerLines.push('NO SOUND SHORTLIST');
+    if (!pick.row) headerLines.push('NO SOUND SUGGESTED');
     headerLines.push([deck.deck_key, deck.series, deck.topic].filter(Boolean).join(' · '));
     if (skipped.length) headerLines.push('', `${skipped.length} deck(s) skipped:`, ...skipped);
     await mustSend(tg, 'header', () => tg.send(headerLines.join('\n')));
@@ -243,11 +248,13 @@ async function main() {
     // in one tap.
     await mustSend(tg, 'instagram caption', () => tg.send(captions.instagram));
     await mustSend(tg, 'tiktok caption', () => tg.send(captions.tiktok));
-    await mustSend(tg, 'sound', () => tg.send(soundLine(sound)));
+    await mustSend(tg, 'sound', () => tg.send(soundLine(pick)));
 
-    // 5. Out of the queue.
-    const at = state.markPacketSent(deck.deck_key);
-    log(`${deck.deck_key}: packet_sent at ${at}`);
+    // 5. Out of the queue, and the sound into history: the deck row and the
+    //    postedRow, so the next packet's rotation reads it from either.
+    const at = state.markPacketSent(deck.deck_key, { sound });
+    const inDeckJson = recordSoundInDeckJson(dir, sound);
+    log(`${deck.deck_key}: packet_sent at ${at}; sound recorded in state.db${inDeckJson ? ' and deck.json postedRow' : ' (no deck.json to update)'}`);
     return finish(0);
   } catch (e) {
     const named = deck ? `${deck.deck_key}${deck.topic ? ` (${deck.topic})` : ''}` : 'no deck selected';
@@ -262,3 +269,5 @@ async function main() {
 }
 
 if (require.main === module) main();
+
+module.exports = { suggestSound, soundLine, recordSoundInDeckJson, publishGate };
