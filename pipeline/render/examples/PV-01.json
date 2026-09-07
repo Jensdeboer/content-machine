@@ -1,0 +1,78 @@
+{
+  "deckId": "PV-01",
+  "series": "RUNNING 101",
+  "date": "2026-09-08",
+  "cover": {
+    "subject": "full-figure",
+    "ground": "navy",
+    "mode": "sentence",
+    "kicker": "RUNNING 101 · EASY DAYS",
+    "headline": "Your easy pace is not slow enough.",
+    "lines": ["Your easy", "pace is not", "slow enough."],
+    "signal": null,
+    "figure": { "cutout": "fig-seated-reach-side", "mirror": true, "x": 351, "y": 919, "scale": 1 },
+    "layout": { "headlineTop": 460, "front": [0] },
+    "stopTest": { "score": 5, "notes": ["three short lines at 140 hold up", "easy is not easy enough", "a long reach to the shoe, pointing at the words", "signal deliberately absent", "how slow is slow enough"] }
+  },
+  "slides": [
+    {
+      "type": "stat",
+      "label": "01 · EASY MEANS EASY",
+      "value": "~2",
+      "unit": "MIN/KM SLOWER THAN 5K PACE",
+      "headline": "That is roughly what easy feels like at first: too slow.",
+      "source": {
+        "figure": "~2 min/km slower than 5K pace",
+        "quote": "Easy (E) pace versus 5K race pace, VDOT 30 to 60 rows of the training-intensity table",
+        "url": "",
+        "publisher": "Daniels' Running Formula, 3rd edition (Human Kinetics)",
+        "retrieved": "2026-09-07",
+        "crossChecked": false
+      }
+    },
+    {
+      "type": "numeral-point",
+      "numeral": "01",
+      "headline": "If you cannot talk in full sentences, slow down."
+    },
+    {
+      "type": "explainer",
+      "headline": "Walk breaks are not failure.",
+      "body": "Run-walk is how most people reach thirty continuous minutes. Nobody is checking."
+    },
+    {
+      "type": "checklist",
+      "label": "02 · BEFORE YOU ADD DISTANCE",
+      "headline": "Three weeks at the same volume first.",
+      "items": [
+        "Same weekly distance, three weeks running",
+        "No niggle that outlasts the warm-up",
+        "Sleeping and eating like it matters"
+      ]
+    },
+    {
+      "type": "progress-scale",
+      "headline": "Add about ten percent a week, at most.",
+      "fill": { "from": 0, "to": 10 },
+      "marker": 10,
+      "ticks": [
+        { "label": "0" },
+        { "label": "+10% A WEEK", "tone": "accent" },
+        { "label": "+20%", "tone": "ink" }
+      ],
+      "source": {
+        "figure": "+10% a week",
+        "quote": "graded training programme increasing running time by 10% a week",
+        "url": "",
+        "publisher": "Buist et al., American Journal of Sports Medicine, 2008",
+        "retrieved": "2026-09-07",
+        "crossChecked": false
+      }
+    },
+    {
+      "type": "cta",
+      "ask": "Save this for your first month.",
+      "credit": "SOURCES · DANIELS · BUIST 2008"
+    }
+  ]
+}

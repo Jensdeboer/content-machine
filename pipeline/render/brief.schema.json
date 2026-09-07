@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pipeline/render/brief.schema.json",
+  "title": "PaceVector deck brief",
+  "description": "One deck: a cover plus 4 or 6 body slides (5 or 7 slides in total, deck-rules.md). Copy is rendered exactly as written; the renderer sizes and places it but never rewrites it. Every colour and size comes from design/01-tokens/tokens.json. Posting history is read from brands/<brand>/memory/posted.jsonl (row shape under $defs.postedRow).",
+  "type": "object",
+  "required": ["deckId", "series", "cover", "slides"],
+  "additionalProperties": false,
+  "properties": {
+    "deckId": { "type": "string", "pattern": "^PV-\\d{2,3}$", "description": "Deck key. Output lands in out/<deckId>/." },
+    "series": { "type": "string", "description": "Series label as it appears in the slide header, uppercase mono, e.g. \"RUNNING 101\" (series.md)." },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Planned post date (ISO). Anchors the 90-day perceptual-hash window and is written to the posted row. Defaults to today." },
+    "handle": { "type": "string", "description": "Handle shown on the cta slide. Defaults to @PACEVECTOR." },
+    "cover": { "$ref": "#/$defs/cover" },
+    "slides": {
+      "type": "array", "minItems": 4, "maxItems": 6,
+      "description": "Slides 2..N in order. Slide 2 must be a stat or a question that stands alone; the last must be cta; the same component never runs three in a row.",
+      "items": { "$ref": "#/$defs/slide" }
+    }
+  },
+  "$defs": {
+    "cover": {
+      "type": "object",
+      "required": ["subject", "mode", "kicker", "headline"],
+      "additionalProperties": false,
+      "properties": {
+        "subject": { "enum": ["full-figure", "detail", "type-led", "conceptual"], "description": "Cover family. Mix per rolling 20 posts is 14/3/2/1 and is enforced from posted.jsonl." },
+        "ground": { "enum": ["white", "navy", "deep"], "description": "Cover ground. Omit to take the ground the alternation requires; when given it is checked against the last post (deep counts as navy)." },
+        "mode": { "enum": ["shout", "sentence", "number"], "description": "Headline mode (cover-grammar). Never the same mode three posts running." },
+        "kicker": { "type": "string", "description": "Top-left mono kicker, six words max, separator · never an em dash. In number mode this is the unit line." },
+        "headline": { "type": "string", "description": "The headline copy. Shout: one or two words (rendered uppercase). Sentence: five to nine words. Number: a single figure." },
+        "lines": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Explicit line breaks. When omitted: shout breaks one word per line, sentence breaks greedily at the fitted size, number is one line. The concatenation must equal the headline." },
+        "align": { "enum": ["left", "centre", "right"], "description": "Headline alignment within the 888 measure. Default left; number mode defaults to centre." },
+        "aside": { "type": "string", "description": "Optional one-line aside under the headline, IBM Plex Sans 300 italic at lead." },
+        "payoff": { "type": "string", "description": "Type-led covers only: a short Sora 700 line near the bottom of the safe area (e.g. \"You go anyway.\"). Steps down from subtitle to fit." },
+        "signal": { "enum": ["chip", "type", "block", "mark", null], "description": "The single signal element, or none. chip: kicker chip (either ground). type: kicker in signal (navy only). block: fill block under the last headline line with ink type (white only). mark: the tick on the markedKm device (conceptual only)." },
+        "figure": {
+          "type": "object", "additionalProperties": false,
+          "description": "full-figure and detail covers. Name a cutout or give hints; the renderer picks the first eligible cutout by energy/faces match, skipping ids used in the last 5 posts and grounds the manifest excludes.",
+          "properties": {
+            "cutout": { "type": "string", "description": "A cutout id from cutouts.json." },
+            "energy": { "enum": ["low", "mid", "high"] },
+            "faces": { "enum": ["left", "right", "up", "down", "camera", "away"] },
+            "mirror": { "type": "boolean", "description": "Flip horizontally. Default: face into the headline." },
+            "x": { "type": "number", "description": "Explicit left edge in slide px. Needs y." },
+            "y": { "type": "number", "description": "Explicit top edge in slide px." },
+            "scale": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "Never above 1: a cutout is never enlarged beyond native size." },
+            "slicedEdges": { "type": "array", "items": { "enum": ["top", "right", "bottom", "left"] }, "description": "Override of which image edges are sliced crop edges and must sit on or beyond the canvas edge. Default: manifest crop wording plus alpha detection." }
+          }
+        },
+        "layout": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "headlineTop": { "type": "number", "description": "Pin the top of the first headline line (slide px). Default: searched." },
+            "graphicTop": { "type": "number", "description": "Conceptual covers: top of the device graphic." },
+            "front": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "description": "Indices of headline lines drawn in front of the figure. Default: all lines behind, moving only failing lines in front (grammar fix order)." }
+          }
+        },
+        "device": { "enum": ["plain", "rule-cut", "scale-break", "hairline-stack", "paceLine", "splitRuler", "markedKm", "threeZones", "effortCurve", "effortDots"], "description": "type-led: plain | rule-cut | scale-break | hairline-stack (03-covers/cover-type-led). conceptual: paceLine | splitRuler | markedKm | threeZones | effortCurve | effortDots (03-covers/cover-concept)." },
+        "deviceData": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "at": { "type": "number", "minimum": 0, "maximum": 1, "description": "markedKm: tick position as a fraction of the line." },
+            "weights": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3, "description": "threeZones: relative bar widths." },
+            "filled": { "type": "integer", "minimum": 0, "maximum": 10, "description": "effortDots: filled dots out of ten." }
+          }
+        },
+        "stopTest": {
+          "type": "object", "required": ["score"], "additionalProperties": false,
+          "properties": { "score": { "type": "integer", "minimum": 0, "maximum": 5 }, "notes": { "type": "array", "items": { "type": "string" } } },
+          "description": "The content engine's stop-test score for this cover. Below 4 blocks the deck."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "One row per figure shown on a slide (sources.md: figure - exact quote or table cell - url - publisher - retrieved date - cross-checked).",
+      "required": ["figure", "quote", "url", "publisher", "retrieved", "crossChecked"],
+      "additionalProperties": false,
+      "properties": {
+        "figure": { "type": "string" },
+        "quote": { "type": "string" },
+        "url": { "type": "string" },
+        "publisher": { "type": "string" },
+        "retrieved": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "crossChecked": { "type": "boolean" }
+      }
+    },
+    "slide": {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "enum": ["stat", "explainer", "numeral-point", "checklist", "pull-statement", "compare", "progress-scale", "chart", "metrics-table", "figure-panel", "cta"] } },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "stat" } } }, "then": { "$ref": "#/$defs/stat" } },
+        { "if": { "properties": { "type": { "const": "explainer" } } }, "then": { "$ref": "#/$defs/explainer" } },
+        { "if": { "properties": { "type": { "const": "numeral-point" } } }, "then": { "$ref": "#/$defs/numeralPoint" } },
+        { "if": { "properties": { "type": { "const": "checklist" } } }, "then": { "$ref": "#/$defs/checklist" } },
+        { "if": { "properties": { "type": { "const": "pull-statement" } } }, "then": { "$ref": "#/$defs/pullStatement" } },
+        { "if": { "properties": { "type": { "const": "compare" } } }, "then": { "$ref": "#/$defs/compare" } },
+        { "if": { "properties": { "type": { "const": "progress-scale" } } }, "then": { "$ref": "#/$defs/progressScale" } },
+        { "if": { "properties": { "type": { "const": "chart" } } }, "then": { "$ref": "#/$defs/chart" } },
+        { "if": { "properties": { "type": { "const": "metrics-table" } } }, "then": { "$ref": "#/$defs/metricsTable" } },
+        { "if": { "properties": { "type": { "const": "figure-panel" } } }, "then": { "$ref": "#/$defs/figurePanel" } },
+        { "if": { "properties": { "type": { "const": "cta" } } }, "then": { "$ref": "#/$defs/cta" } }
+      ]
+    },
+    "richText": { "type": "string", "description": "Plain text. One [[phrase]] may be wrapped to set it in accent-ink (at most one accent per slide); \\n forces a line break." },
+    "stat": {
+      "required": ["value", "unit", "headline", "source"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "label": { "type": "string", "description": "Mono kicker above the value, e.g. \"01 · EASY MEANS EASY\"." },
+        "value": { "type": "string", "description": "The number, e.g. \"~2\"." },
+        "unit": { "type": "string", "description": "Mono unit after the value." },
+        "valueStep": { "enum": ["xl", "l"], "description": "Size step for the value. xl by default; l for wide values (template third state)." },
+        "headline": { "$ref": "#/$defs/richText" },
+        "body": { "$ref": "#/$defs/richText" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "explainer": {
+      "required": ["headline", "body"], "additionalProperties": false,
+      "properties": { "type": true, "headline": { "$ref": "#/$defs/richText" }, "body": { "$ref": "#/$defs/richText" } }
+    },
+    "numeralPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "numeral": { "type": "string", "description": "e.g. \"01\"." },
+        "headline": { "$ref": "#/$defs/richText" },
+        "body": { "$ref": "#/$defs/richText" },
+        "items": { "type": "array", "minItems": 2, "maxItems": 2, "description": "Stacked pair variant: two numbered points in one frame.", "items": { "type": "object", "required": ["numeral", "headline"], "additionalProperties": false, "properties": { "numeral": { "type": "string" }, "headline": { "$ref": "#/$defs/richText" }, "body": { "$ref": "#/$defs/richText" } } } }
+      },
+      "anyOf": [ { "required": ["numeral", "headline"] }, { "required": ["items"] } ]
+    },
+    "checklist": {
+      "required": ["headline"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "label": { "type": "string" },
+        "headline": { "$ref": "#/$defs/richText" },
+        "items": { "type": "array", "minItems": 2, "maxItems": 4, "items": { "$ref": "#/$defs/richText" }, "description": "Square-marker items (three or four)." },
+        "rows": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "type": "object", "required": ["label", "text"], "additionalProperties": false, "properties": { "label": { "type": "string" }, "text": { "$ref": "#/$defs/richText" } } }, "description": "Mono-label rows variant (template third state)." }
+      },
+      "anyOf": [ { "required": ["items"] }, { "required": ["rows"] } ]
+    },
+    "pullStatement": {
+      "required": ["headline"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "label": { "type": "string" },
+        "headline": { "$ref": "#/$defs/richText" },
+        "aside": { "type": "string", "description": "Italic aside under the statement." },
+        "ground": { "enum": ["accent"], "description": "Third state: statement on the accent ground with an arrow rule; label and aside are not shown." }
+      }
+    },
+    "compareColumn": {
+      "type": "object", "required": ["label"], "additionalProperties": false,
+      "properties": { "label": { "type": "string" }, "headline": { "$ref": "#/$defs/richText" }, "body": { "$ref": "#/$defs/richText" }, "value": { "type": "string" }, "unit": { "type": "string" } }
+    },
+    "compare": {
+      "required": ["headline", "left", "right"], "additionalProperties": false,
+      "properties": { "type": true, "label": { "type": "string" }, "headline": { "$ref": "#/$defs/richText" }, "left": { "$ref": "#/$defs/compareColumn" }, "right": { "$ref": "#/$defs/compareColumn" }, "source": { "$ref": "#/$defs/source" } }
+    },
+    "progressScale": {
+      "required": ["headline", "source"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "headline": { "$ref": "#/$defs/richText" },
+        "fill": { "type": "object", "required": ["from", "to"], "additionalProperties": false, "properties": { "from": { "type": "number", "minimum": 0, "maximum": 100 }, "to": { "type": "number", "minimum": 0, "maximum": 100 } }, "description": "Accent range as percentages of the bar." },
+        "marker": { "type": "number", "minimum": 0, "maximum": 100, "description": "Ink marker position, percent." },
+        "ticks": { "anyOf": [ { "type": "array", "items": { "type": "object", "required": ["label"], "additionalProperties": false, "properties": { "label": { "type": "string" }, "tone": { "enum": ["accent", "ink"] } } } }, { "type": "integer", "minimum": 2, "maximum": 9 } ], "description": "Bar: mono tick labels spread across the bar, tone lifts one out of mute. Ruler variant: the number of ticks." },
+        "body": { "$ref": "#/$defs/richText" },
+        "variant": { "enum": ["ruler"], "description": "Tick-ruler variant (template third state): a plain ruler with n ticks and a mono caption." },
+        "caption": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "chart": {
+      "required": ["headline", "source"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "numeral": { "type": "string" },
+        "headline": { "$ref": "#/$defs/richText" },
+        "points": { "type": "array", "minItems": 2, "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } }, "description": "Single accent curve: [x, y] pairs normalised 0..1 (y up)." },
+        "reference": { "type": "object", "required": ["x"], "additionalProperties": false, "properties": { "x": { "type": "number", "minimum": 0, "maximum": 1 }, "y": { "type": "number", "minimum": 0, "maximum": 1 }, "label": { "type": "string" } }, "description": "One dashed reference line with an annotated point." },
+        "xLabel": { "type": "string" },
+        "body": { "$ref": "#/$defs/richText" },
+        "variant": { "enum": ["two-series"] },
+        "planned": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "two-series: dashed ink series." },
+        "actual": { "type": "array", "items": { "type": "array", "items": { "type": "number" } }, "description": "two-series: solid accent series." },
+        "legend": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "metricsTable": {
+      "required": ["headline", "cells", "source"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "headline": { "$ref": "#/$defs/richText" },
+        "cells": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "type": "object", "required": ["label"], "additionalProperties": false, "properties": { "label": { "type": "string" }, "value": { "type": "string" }, "unit": { "type": "string" }, "phrase": { "type": "string" } } } },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "figurePanel": {
+      "required": ["headline", "cutout"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "label": { "type": "string" },
+        "headline": { "$ref": "#/$defs/richText" },
+        "body": { "$ref": "#/$defs/richText" },
+        "cutout": { "type": "string", "description": "Cutout id; drawn at most at native size in the light-tint panel." },
+        "variant": { "enum": ["narrow", "wide"] }
+      }
+    },
+    "cta": {
+      "required": ["ask", "credit"], "additionalProperties": false,
+      "properties": {
+        "type": true,
+        "ask": { "anyOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 2 } ], "description": "One or two lines: save/follow prompt or a question." },
+        "credit": { "type": "string", "description": "One line of source credit (deck-rules: last slide carries one line of source credit)." },
+        "wordmark": { "type": "string" }, "tagline": { "type": "string" }, "handle": { "type": "string" }
+      }
+    },
+    "postedRow": {
+      "type": "object",
+      "description": "One line of brands/<brand>/memory/posted.jsonl, appended by the publish step from out/<deckId>/deck.json postedRow. The renderer reads: ground (alternation), subject (14/3/2/1 mix over 20), mode (no run of three), cutout (no repeat within 5), position (no repeat within 5), date + coverHash (90-day perceptual hash).",
+      "required": ["deckId", "date", "ground", "subject", "mode"],
+      "properties": {
+        "deckId": { "type": "string" },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "series": { "type": "string" },
+        "ground": { "enum": ["white", "navy", "deep"] },
+        "subject": { "enum": ["full-figure", "detail", "type-led", "conceptual"] },
+        "mode": { "enum": ["shout", "sentence", "number"] },
+        "cutout": { "type": ["string", "null"] },
+        "position": { "type": ["string", "null"], "description": "Figure position label, e.g. bottom-right." },
+        "signal": { "type": ["string", "null"] },
+        "coverHash": { "type": ["string", "null"], "description": "16 hex chars, 64-bit DCT perceptual hash of 01.jpg." }
+      }
+    }
+  }
+}

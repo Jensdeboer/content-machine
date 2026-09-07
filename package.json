@@ -1,0 +1,25 @@
+{
+  "name": "content-machine",
+  "version": "1.0.0",
+  "description": "The content operation: two faceless carousel accounts, one pipeline, one brain per brand. Fresh start — supersedes the old MoneyMedia repo.",
+  "main": "index.js",
+  "scripts": {
+    "render": "node pipeline/render/index.js",
+    "qa": "node pipeline/render/qa.js",
+    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jensdeboer/content-machine.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jensdeboer/content-machine/issues"
+  },
+  "homepage": "https://github.com/Jensdeboer/content-machine#readme",
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}

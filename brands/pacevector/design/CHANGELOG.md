@@ -1,3 +1,7 @@
+v0.7.1 cover floor corrected — 7 September 2026
+
+- Grammar: the negative list said "Nothing under 30px". Every library cover sets its kicker at the 26px label step, so the 30px figure contradicted the board and was a drafting error. The line now reads the 24px token floor, with the 26px kicker noted as legal. The board wins over the prose; no cover changes.
+
 v0.7 logo rule relaxed, type-space computed — 7 September 2026
 
 - Grammar: visible apparel logos are no longer banned. The `logos` flag stays in `cutouts.json` as information so a cover can avoid one where it would distract, but it never disqualifies a figure. The rest of the negative list is unchanged; "no recognisable professional athletes" is kept, since that is a likeness question rather than a brand one.
