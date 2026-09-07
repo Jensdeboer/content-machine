@@ -26,7 +26,9 @@ saves per 1k reach and follows per post — never likes.
 
 ## Experiment backlog (one at a time, in this order until data reorders it)
 
-1. Signal on cover vs no signal — does volt move thumbnail CTR?
+1. Signal on cover vs no signal - does volt move thumbnail CTR?
+1b. Trending sound vs no sound on TikTok - if sound does not move saves or
+    views, TikTok can post itself directly and the daily 90 seconds goes away.
 2. Slot time: 09:00 vs 15:00 CEST (US morning)
 3. 5-slide vs 7-slide decks
 4. Number covers vs sentence covers for the Science series

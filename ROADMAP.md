@@ -62,9 +62,12 @@ Until then it is a second bill and a second failure mode.*
 steps cannot be debugged or reproduced. Fixed pipeline, smart brain — that is
 a design decision, not a limitation.
 
-**Level 3 full autonomy.** Blocked by the platforms, not by ambition: no API
-can attach a trending sound, and sound is part of the format. The last tap
-stays human.
+**Level 3 full autonomy.** Available, and declined. The provider can post to
+TikTok directly, so this is a tradeoff rather than a wall: a direct photo post
+gets whatever sound TikTok assigns, never a trending one, and audio discovery
+is a real lever on both platforms. Ninety seconds a day buys it. Revisit if
+the sound experiment in growth.md shows music does not move saves - then
+direct posting becomes the default and the loop closes without you.
 
 **A database for the brain.** Markdown in git is diffable, reviewable, and
 forces brain changes through a merge. That property is worth more than query
