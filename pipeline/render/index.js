@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Deck renderer. Brief JSON in, 5 or 7 JPEGs at 2160x2700 out, then QA.
-//   node pipeline/render/index.js pipeline/render/examples/PV-01.json
+//   node pipeline/render/index.js pipeline/render/examples/PV-01.json   (a fixture: lands in out/test/)
 //   options: --out <dir> (default out) --brand <dir> (default brands/pacevector) --no-qa
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +17,7 @@ const RULES = require('./lib/rules');
 const qa = require('./qa');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const EXAMPLES = path.join(__dirname, 'examples');
 const SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'brief.schema.json'), 'utf8'));
 
 // Strings the cta template fixes (design/04-slides/cta.dc.html). Constant
@@ -35,6 +36,19 @@ function parseArgs(argv) {
   }
   args.brief = rest[0];
   return args;
+}
+
+// A brief from examples/ is a fixture. Its output never lands next to a real
+// deck: whatever --out says, a fixture renders under <out>/test/, so a test
+// run can never overwrite out/<deckId> of a deck the nightly produced. The
+// fixture carries a real-looking deckId on purpose (the schema demands one),
+// which is exactly why the folder, not the id, is what keeps them apart.
+function fixtureSafeOut(args) {
+  if (!args.brief || !path.resolve(args.brief).startsWith(EXAMPLES + path.sep)) return args.out;
+  if (path.basename(args.out) === 'test') return args.out;
+  const out = path.join(args.out, 'test');
+  console.log(`fixture brief: output redirected to ${path.relative(ROOT, out)}/`);
+  return out;
 }
 
 class Blocked extends Error {
@@ -96,6 +110,7 @@ function checkStructure(brief) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.brief) { console.error('usage: node pipeline/render/index.js <brief.json> [--out dir] [--brand dir] [--no-qa]'); process.exit(1); }
+  args.out = fixtureSafeOut(args);
   const brief = JSON.parse(fs.readFileSync(args.brief, 'utf8'));
   const schemaErrors = validate(SCHEMA, brief);
   if (schemaErrors.length) { console.error('brief does not match brief.schema.json:\n  ' + schemaErrors.join('\n  ')); process.exit(1); }

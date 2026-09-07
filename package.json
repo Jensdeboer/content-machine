@@ -7,7 +7,8 @@
     "render": "node pipeline/render/index.js",
     "qa": "node pipeline/render/qa.js",
     "capacity": "node pipeline/render/capacity.js",
-    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json"
+    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json --out out/test",
+    "test:qa": "node pipeline/render/qa.js out/test/PV-01"
   },
   "repository": {
     "type": "git",

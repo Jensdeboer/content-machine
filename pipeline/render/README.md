@@ -2,10 +2,15 @@
 
 Brief JSON in, `out/<deckId>/01.jpg … NN.jpg` at 2160x2700 out, then `review.json`.
 
-    npm test                                   # renders examples/PV-01.json
+    npm test                                   # renders examples/PV-01.json into out/test/PV-01
+    npm run test:qa                            # QA alone on that fixture output
     node pipeline/render/index.js <brief.json> [--out out] [--brand brands/pacevector] [--no-qa]
-    node pipeline/render/qa.js out/PV-01       # QA alone, exit 3 when flagged
-    node pipeline/render/qa.js out/PV-01 --publish   # publish gate: unfilled or unchecked source rows block
+    node pipeline/render/qa.js out/<deckId>    # QA alone on a real deck, exit 3 when flagged
+    node pipeline/render/qa.js out/<deckId> --publish   # publish gate: unfilled or unchecked source rows block
+
+Real decks live in `out/<deckId>/`, written by the nightly. Tests never touch
+them: a brief from `examples/` always renders under `out/test/`, whatever
+`--out` says, and the stub run writes to `out/stub/`.
 
 Design at 1080x1350, screenshot at deviceScaleFactor 2. Margin, safe zone and
 footer band come from `tokens.json`; template dimensions the locked `.dc.html`
