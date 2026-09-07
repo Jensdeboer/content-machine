@@ -19,6 +19,10 @@ Code-rendered source for the PaceVector visual identity. Every file here is deri
 - `04-slides/` — one file per slide component. Each shows a short state, a long state, and one third state that makes sense for that component. Only `cover` and `figure-panel` carry images.
 - `05-chrome/` — `footer.dc.html`, `logo.svg` (two-tone mark C: mute stem, solid arrow), `logo-variants.dc.html`.
 - `06-decks/` — five seven-slide carousels, one per series, built only from `04-slides` components and `03-covers` library covers.
+  - Every cover is unique: never reuse a library cover across decks, and it has to stop the scroll on its own (stop-test ≥ 4/5).
+  - A kicker chip on the cover is optional (about one deck in three), placed against the headline. No corner title or page counter on any slide.
+  - Slides 2–6 carry one numbered point each, 01–05 in order. Vary which component opens: not every deck starts stat → numeral.
+  - Slide 7 is the CTA: mark, name, tagline, then like / save / send icons. No handle, no source lines.
 - `07-profile/` — `avatar.dc.html`, `grid.dc.html`.
 
 ## Status

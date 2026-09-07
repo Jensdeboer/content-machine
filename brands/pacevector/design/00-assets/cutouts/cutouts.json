@@ -1,10 +1,8 @@
 {
   "$meta": {
-    "note": "type-space, dense, density and coverage are computed from each PNG alpha channel, not judged by eye. The 3x3 grid is relative to the CUTOUT'S OWN alpha bounding box, not the 1080x1350 canvas: after placing a figure, map its zones onto the canvas to find where a headline can sit. type-space lists zones under 15% alpha (safe for type); dense lists zones at or above 55% (never place type there). coverage is mean fill.",
+    "note": "One entry per cutout in 00-assets/cutouts/. All files are true alpha PNGs from removebg exports, black and white baked in (grayscale, contrast 1.18, brightness .88), cropped to the alpha bounding box. Never scale a cutout above its width × height. ground excludes navy where dark clothing would disappear. grammar records exclusions under cover-grammar.md; user-approved entries override a grammar exclusion at the owner's request.",
     "processing": "6 September 2026: the original keyed set (flattened renders keyed on white) removed entirely. Sixteen true cutouts installed; fig-runner-side and fig-runner-bottle removed without replacement.",
-    "count": 18,
-    "version": "0.7",
-    "logos": "Informational only. Visible apparel logos are permitted; the flag is kept so a cover can avoid them when it matters."
+    "count": 18
   },
   "cutouts": [
     {
@@ -19,33 +17,8 @@
       "crop": "whole body, both feet off the ground",
       "ground": "both",
       "logos": true,
-      "note": "Small file: 521 px tall. Use floating, never enlarged.",
-      "coverage": 0.25,
-      "density": [
-        [
-          0.08,
-          0.37,
-          0.39
-        ],
-        [
-          0.02,
-          0.69,
-          0.24
-        ],
-        [
-          0.26,
-          0.23,
-          0.0
-        ]
-      ],
-      "type-space": [
-        "upper-left",
-        "centre-left",
-        "lower-right"
-      ],
-      "dense": [
-        "centre"
-      ]
+      "grammar": "ok",
+      "note": "Small file: 521 px tall. Use floating, never enlarged."
     },
     {
       "id": "fig-kick",
@@ -59,31 +32,7 @@
       "crop": "sole and leg dominate, torso small above",
       "ground": "both",
       "logos": true,
-      "coverage": 0.3,
-      "density": [
-        [
-          0.22,
-          0.44,
-          0.64
-        ],
-        [
-          0.44,
-          0.32,
-          0.4
-        ],
-        [
-          0.0,
-          0.0,
-          0.2
-        ]
-      ],
-      "type-space": [
-        "lower-left",
-        "lower-centre"
-      ],
-      "dense": [
-        "upper-right"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-stretch-seated",
@@ -97,35 +46,7 @@
       "crop": "whole body, cropped below the shoes",
       "ground": "both",
       "logos": true,
-      "coverage": 0.64,
-      "density": [
-        [
-          0.13,
-          0.93,
-          0.14
-        ],
-        [
-          0.82,
-          1.0,
-          0.87
-        ],
-        [
-          0.44,
-          0.97,
-          0.46
-        ]
-      ],
-      "type-space": [
-        "upper-left",
-        "upper-right"
-      ],
-      "dense": [
-        "upper-centre",
-        "centre-left",
-        "centre",
-        "centre-right",
-        "lower-centre"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-shoe-shoulder",
@@ -139,35 +60,7 @@
       "crop": "torso and shoe, cropped at the waist",
       "ground": "both",
       "logos": true,
-      "coverage": 0.76,
-      "density": [
-        [
-          0.47,
-          0.79,
-          0.58
-        ],
-        [
-          0.89,
-          1.0,
-          0.63
-        ],
-        [
-          0.61,
-          1.0,
-          0.89
-        ]
-      ],
-      "type-space": [],
-      "dense": [
-        "upper-centre",
-        "upper-right",
-        "centre-left",
-        "centre",
-        "centre-right",
-        "lower-left",
-        "lower-centre",
-        "lower-right"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-tying",
@@ -181,33 +74,7 @@
       "crop": "whole body, cropped at the foot",
       "ground": "both",
       "logos": true,
-      "coverage": 0.46,
-      "density": [
-        [
-          0.06,
-          0.62,
-          0.78
-        ],
-        [
-          0.36,
-          0.85,
-          0.51
-        ],
-        [
-          0.51,
-          0.41,
-          0.04
-        ]
-      ],
-      "type-space": [
-        "upper-left",
-        "lower-right"
-      ],
-      "dense": [
-        "upper-centre",
-        "upper-right",
-        "centre"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-quad-stretch",
@@ -221,34 +88,7 @@
       "crop": "whole body, cropped at the standing shin",
       "ground": "both",
       "logos": true,
-      "coverage": 0.47,
-      "density": [
-        [
-          0.08,
-          0.46,
-          0.28
-        ],
-        [
-          0.35,
-          0.87,
-          0.63
-        ],
-        [
-          0.0,
-          0.65,
-          0.9
-        ]
-      ],
-      "type-space": [
-        "upper-left",
-        "lower-left"
-      ],
-      "dense": [
-        "centre",
-        "centre-right",
-        "lower-centre",
-        "lower-right"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-bent-over",
@@ -262,29 +102,7 @@
       "crop": "whole body, cropped at the shoes",
       "ground": "both",
       "logos": true,
-      "coverage": 0.49,
-      "density": [
-        [
-          0.47,
-          0.91,
-          0.43
-        ],
-        [
-          0.54,
-          0.56,
-          0.26
-        ],
-        [
-          0.29,
-          0.49,
-          0.47
-        ]
-      ],
-      "type-space": [],
-      "dense": [
-        "upper-centre",
-        "centre"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-seated-reach-side",
@@ -298,32 +116,8 @@
       "crop": "whole body, low and wide",
       "ground": "both",
       "logos": false,
-      "note": "Small file: 431 px tall.",
-      "coverage": 0.39,
-      "density": [
-        [
-          0.15,
-          0.43,
-          0.0
-        ],
-        [
-          0.6,
-          0.41,
-          0.19
-        ],
-        [
-          0.82,
-          0.47,
-          0.4
-        ]
-      ],
-      "type-space": [
-        "upper-right"
-      ],
-      "dense": [
-        "centre-left",
-        "lower-left"
-      ]
+      "grammar": "ok",
+      "note": "Small file: 431 px tall."
     },
     {
       "id": "fig-seated-reach",
@@ -337,34 +131,7 @@
       "crop": "whole body, cropped at the hair",
       "ground": "both",
       "logos": true,
-      "coverage": 0.52,
-      "density": [
-        [
-          0.66,
-          0.56,
-          0.14
-        ],
-        [
-          0.96,
-          0.69,
-          0.44
-        ],
-        [
-          0.17,
-          0.41,
-          0.66
-        ]
-      ],
-      "type-space": [
-        "upper-right"
-      ],
-      "dense": [
-        "upper-left",
-        "upper-centre",
-        "centre-left",
-        "centre",
-        "lower-right"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-sole-stretch",
@@ -378,34 +145,38 @@
       "crop": "sole and torso, cropped left and right",
       "ground": "both",
       "logos": false,
-      "note": "Cropped on both sides: place with one side on a canvas edge.",
-      "coverage": 0.48,
-      "density": [
-        [
-          0.26,
-          0.78,
-          0.15
-        ],
-        [
-          0.89,
-          0.81,
-          0.33
-        ],
-        [
-          0.65,
-          0.47,
-          0.0
-        ]
-      ],
-      "type-space": [
-        "lower-right"
-      ],
-      "dense": [
-        "upper-centre",
-        "centre-left",
-        "centre",
-        "lower-left"
-      ]
+      "grammar": "ok",
+      "note": "Cropped on both sides: place with one side on a canvas edge."
+    },
+    {
+      "id": "fig-medal-bite",
+      "file": "fig-medal-bite.png",
+      "width": 1200,
+      "height": 1307,
+      "type": "full-figure",
+      "pose": "biting a finisher medal, wide-angle from above",
+      "faces": "camera",
+      "energy": "high",
+      "crop": "head and torso, cropped at the waist",
+      "ground": "both",
+      "logos": true,
+      "grammar": "excluded",
+      "note": "Face-forward portrait with sponsor ribbons."
+    },
+    {
+      "id": "fig-runner-smiling",
+      "file": "fig-runner-smiling.png",
+      "width": 347,
+      "height": 800,
+      "type": "full-figure",
+      "pose": "running toward camera, smiling",
+      "faces": "camera",
+      "energy": "mid",
+      "crop": "whole body, cropped at the knee",
+      "ground": "both",
+      "logos": false,
+      "grammar": "excluded",
+      "note": "Smiling stock pose."
     },
     {
       "id": "fig-runner-low",
@@ -419,34 +190,7 @@
       "crop": "torso and arm, cropped at the hips",
       "ground": "both",
       "logos": false,
-      "coverage": 0.62,
-      "density": [
-        [
-          0.35,
-          0.92,
-          0.13
-        ],
-        [
-          0.45,
-          1.0,
-          0.35
-        ],
-        [
-          0.8,
-          0.95,
-          0.67
-        ]
-      ],
-      "type-space": [
-        "upper-right"
-      ],
-      "dense": [
-        "upper-centre",
-        "centre",
-        "lower-left",
-        "lower-centre",
-        "lower-right"
-      ]
+      "grammar": "ok"
     },
     {
       "id": "fig-sole-forward",
@@ -460,34 +204,8 @@
       "crop": "whole body, sole in front",
       "ground": "both",
       "logos": true,
-      "note": "Face-forward and smiling; approved for detail use with the face cropped or covered.",
-      "coverage": 0.47,
-      "density": [
-        [
-          0.0,
-          0.45,
-          0.67
-        ],
-        [
-          0.19,
-          0.85,
-          0.84
-        ],
-        [
-          0.2,
-          0.33,
-          0.72
-        ]
-      ],
-      "type-space": [
-        "upper-left"
-      ],
-      "dense": [
-        "upper-right",
-        "centre",
-        "centre-right",
-        "lower-right"
-      ]
+      "grammar": "user-approved",
+      "note": "Face-forward and smiling; approved for detail use with the face cropped or covered."
     },
     {
       "id": "fig-portrait-visor",
@@ -501,35 +219,8 @@
       "crop": "head and shoulders, bleeds all four edges",
       "ground": "both",
       "logos": true,
-      "note": "Face-forward portrait; approved as a full-bleed detail.",
-      "coverage": 0.78,
-      "density": [
-        [
-          0.25,
-          1.0,
-          0.71
-        ],
-        [
-          0.52,
-          1.0,
-          0.8
-        ],
-        [
-          0.75,
-          1.0,
-          1.0
-        ]
-      ],
-      "type-space": [],
-      "dense": [
-        "upper-centre",
-        "upper-right",
-        "centre",
-        "centre-right",
-        "lower-left",
-        "lower-centre",
-        "lower-right"
-      ]
+      "grammar": "user-approved",
+      "note": "Face-forward portrait; approved as a full-bleed detail."
     },
     {
       "id": "fig-towel",
@@ -543,32 +234,8 @@
       "crop": "whole body, cropped at the shins",
       "ground": "both",
       "logos": true,
-      "note": "Visible waistband logo.",
-      "coverage": 0.32,
-      "density": [
-        [
-          0.0,
-          0.34,
-          0.5
-        ],
-        [
-          0.0,
-          0.63,
-          0.44
-        ],
-        [
-          0.36,
-          0.18,
-          0.43
-        ]
-      ],
-      "type-space": [
-        "upper-left",
-        "centre-left"
-      ],
-      "dense": [
-        "centre"
-      ]
+      "grammar": "user-approved",
+      "note": "Visible waistband logo."
     },
     {
       "id": "fig-cap-bottle",
@@ -582,36 +249,8 @@
       "crop": "head and shoulders",
       "ground": "both",
       "logos": true,
-      "note": "Preview-size file, 294 px. Slide use only until a larger export arrives.",
-      "coverage": 0.39,
-      "density": [
-        [
-          0.56,
-          0.38,
-          0.0
-        ],
-        [
-          0.19,
-          0.78,
-          0.68
-        ],
-        [
-          0.0,
-          0.07,
-          0.87
-        ]
-      ],
-      "type-space": [
-        "upper-right",
-        "lower-left",
-        "lower-centre"
-      ],
-      "dense": [
-        "upper-left",
-        "centre",
-        "centre-right",
-        "lower-right"
-      ]
+      "grammar": "user-approved",
+      "note": "Preview-size file, 294 px. Slide use only until a larger export arrives."
     },
     {
       "id": "fig-vintage-runner",
@@ -625,35 +264,8 @@
       "crop": "whole body",
       "ground": "white",
       "logos": true,
-      "note": "Recognisable athlete and bib; preview-size file, 592 px.",
-      "coverage": 0.26,
-      "density": [
-        [
-          0.0,
-          0.73,
-          0.09
-        ],
-        [
-          0.05,
-          0.8,
-          0.2
-        ],
-        [
-          0.3,
-          0.15,
-          0.0
-        ]
-      ],
-      "type-space": [
-        "upper-left",
-        "upper-right",
-        "centre-left",
-        "lower-right"
-      ],
-      "dense": [
-        "upper-centre",
-        "centre"
-      ]
+      "grammar": "user-approved",
+      "note": "Recognisable athlete and bib; preview-size file, 592 px."
     }
   ]
 }

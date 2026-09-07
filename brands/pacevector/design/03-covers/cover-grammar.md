@@ -26,10 +26,10 @@ Every cover is exactly one of three.
 Any headline mode may carry one optional aside line under the headline: IBM Plex Sans 300 italic at lead 44, one line only.
 
 ## SIGNAL
-#D8FF47, at most one element per cover, covers only. On navy it may be type or a chip. On white it may ONLY be a fill block with black type on it — never signal-coloured type on white. About one cover in three carries it.
+#D8FF47, at most one element per cover, covers only. On navy it may be type, a chip or a mark on the pace-line. On white it may ONLY be a fill block with black type on it — never signal-coloured type on white. About one cover in three carries it; the rest carry none.
 
 ## KICKER
-IBM Plex Mono 500, uppercase, 0.1em tracking, top-left, six words maximum. Separator is · never an em dash. On white grounds in mute; on navy grounds in mute-inv #9AA7B4; or as a signal chip on either.
+Optional. Use it when the headline needs a frame (a bare number, a shout word) or the cover would otherwise read empty; leave it off when the sentence stands alone. IBM Plex Mono 500, uppercase, 0.1em tracking, six words maximum. Separator is · never an em dash. Always a signal chip (black type on #D8FF47, 12/24 padding) and it counts as the cover's one signal element. It sits on the headline's left edge, directly above or below the headline block, never in a corner and never as a page title.
 
 ## CHROME
 The P mark, small, one corner. No handle, no progress bar, no swipe cue, no chevrons.
@@ -38,9 +38,7 @@ The P mark, small, one corner. No handle, no progress bar, no swipe cue, no chev
 No headline mode three posts running. No cutout position repeated within five posts.
 
 ## NEGATIVE LIST
-No colour photography. No gradients except ground-deep. No second signal element. No smiling stock poses. No recognisable professional athletes. No emoji. No exclamation marks. No em dash in a kicker. Nothing under the 24px token floor (`size.floor` in tokens.json); the kicker at the 26px label step is legal.
-
-Visible apparel logos are permitted. Cutouts carry a `logos` flag in cutouts.json so a cover can avoid one where it would distract, but a logo is never a reason to reject a figure.
+No colour photography. No gradients except ground-deep. No second signal element. No smiling stock poses. No visible apparel logos. No recognisable professional athletes. No emoji. No exclamation marks. No em dash in a kicker. Nothing under 30px.
 
 ## STOP TEST
 One point each, pass at 4.

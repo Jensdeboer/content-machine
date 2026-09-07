@@ -1,13 +1,11 @@
-v0.7.1 cover floor corrected — 7 September 2026
+v0.7 slide chrome stripped, CTA icon row, optional cover kicker — 7 September 2026
 
-- Grammar: the negative list said "Nothing under 30px". Every library cover sets its kicker at the 26px label step, so the 30px figure contradicted the board and was a drafting error. The line now reads the 24px token floor, with the 26px kicker noted as legal. The board wins over the prose; no cover changes.
-
-v0.7 logo rule relaxed, type-space computed — 7 September 2026
-
-- Grammar: visible apparel logos are no longer banned. The `logos` flag stays in `cutouts.json` as information so a cover can avoid one where it would distract, but it never disqualifies a figure. The rest of the negative list is unchanged; "no recognisable professional athletes" is kept, since that is a likeness question rather than a brand one.
-- Cutouts: `fig-medal-bite` (face-forward portrait with sponsor ribbons) and `fig-runner-smiling` (smiling stock pose) removed — both excluded for tone, not for logos. Sixteen cutouts remain.
-- Manifest: `grammar` field dropped. Four computed fields added to every entry, measured from the PNG alpha channel rather than judged by eye — `coverage` (mean fill), `density` (3x3 alpha grid), `type-space` (zones under 15% alpha, safe for type) and `dense` (zones at or above 55%, never place type there). The grid is relative to each cutout's own alpha bounding box, not the canvas.
-- Note: `fig-shoe-shoulder`, `fig-bent-over` and `fig-portrait-visor` have no free zone at all (coverage 0.76, 0.49, 0.78). They carry a headline only if the type sits fully in front of the figure.
+- Slides: the header row (series title top-left, `NN / 07` counter top-right) is removed from every `04-slides` component and every deck slide. The slide now runs safe-area top → content → footer band (mark left, SWIPE right). Sanctioned unlock of `04-slides` for this change only; the folder is locked again.
+- CTA: ask line and `@PACEVECTOR` handle removed. A like / save / send icon row (three 24-grid stroke icons at 64, stroke 2.4, on-accent, gap 40) sits under MOVE WITH PURPOSE inside the centred stack. The footer band on this slide is now empty; the stack centres on the full safe height. Nothing on the CTA changes between carousels.
+- Covers: the corner kicker is gone. The kicker is now optional and, when used, is a signal chip placed on the headline's left edge directly above or below the headline block. It counts as the cover's one signal element. Deck covers PV-03 (under the 32; the pace-line tick goes on-accent) and PV-04 (under DROP) carry it; PV-01, PV-02, PV-05 carry none.
+- Decks: slides 2–6 carry one sequential point number each (01–05). The stat eyebrow and the numeral-point figure share the one counter. PV-01 gained eyebrows on its explainer and progress-scale slides so the run is complete. Slides 2 and 3 swapped in PV-02 and PV-04 so not every deck opens stat → numeral.
+- Tokens: no value, name or step changed. `$meta.version` corrected from 0.5 to 0.7 (it had not been bumped at 0.6); `tokens.css` regenerated, byte-identical apart from the header comment.
+- Handoff notes for the renderer in `design/HANDOFF.md`.
 
 v0.6 mark C, true cutout set — 7 September 2026
 
