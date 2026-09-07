@@ -25,9 +25,14 @@ const feedsLib = require('./lib/feeds');
 const { lintCopy, blocks: lintBlocks, flags: lintFlags } = require('./lib/lint');
 const { callModel, ModelError } = require('./models');
 const { validate } = require('./render/lib/schema-check');
+const capacity = require('./render/capacity');
 
 const ROOT = path.resolve(__dirname, '..');
 const BRIEF_SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'render', 'brief.schema.json'), 'utf8'));
+// How much copy each component holds, measured by pipeline/render/capacity.js
+// in the real font. Write is given the budgets so the copy fits by
+// construction; without the file it writes blind and QA catches the overflow.
+const CAPACITY = capacity.load();
 const today = () => new Date().toISOString().slice(0, 10);
 
 // A deck stopped by a rule, as opposed to a deck stopped by a failure.
@@ -326,7 +331,17 @@ const WRITE_SHAPE = `{
   }
 }`;
 
-async function stageWrite({ cfg, brain, idea, sources, previousErrors }) {
+async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt = 1 }) {
+  const budgets = CAPACITY ? [
+    '',
+    '--- how much copy each component holds ---',
+    'Measured in the real font at the real size on the real canvas, and they hold',
+    'together: a slide carrying every field at its budget was rendered and fits.',
+    'Write to them. Going over does not make a better slide, it makes a slide the',
+    'renderer has to break.',
+    ...capacity.promptLines(CAPACITY),
+    '--- end ---',
+  ] : [];
   const prompt = [
     'Write one deck.',
     '',
@@ -351,12 +366,25 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors }) {
     '- Seven slides: a cover, five middle slides carrying point numbers 01-05 in order, and cta last.',
     '- The cta takes no input but its one line of source credit.',
     '- Copy obeys banned.md exactly. It is a hard list, not a preference.',
+    ...budgets,
     previousErrors ? `\nYour previous attempt did not validate:\n${previousErrors}\nFix exactly these and return the whole object again.` : '',
   ].join('\n');
 
   const out = await callModel({ stage: 'write', prompt, schema: WRITE_SHAPE, config: cfg, log });
   if (!out.brief || typeof out.brief !== 'object') throw new Error('write returned no brief object');
-  return { brief: out.brief, captions: out.captions || {} };
+
+  // One rewrite for copy that will not fit its component. Cheaper than a
+  // blocked deck, and the second attempt is told which field and by how much.
+  // What is still over after it is a warning rather than a block: the budget is
+  // 90% of what fitted, so over-budget copy often still renders, and QA is the
+  // gate that decides.
+  const over = capacity.budgetFindings(out.brief, CAPACITY);
+  if (over.length && attempt === 1) {
+    log(`  write: ${over.length} field(s) over budget, rewriting once`);
+    const detail = over.map((o) => `${o.where} (${o.component}.${o.field}) is ${o.chars} characters; the budget is ${o.budget}`).join('\n');
+    return stageWrite({ cfg, brain, idea, sources, attempt: 2, previousErrors: `The copy does not fit the components:\n${detail}\nCut these to the budget. Everything else in the deck stays as it is.` });
+  }
+  return { brief: out.brief, captions: out.captions || {}, overBudget: over };
 }
 
 // --------------------------------------------------------------------------
@@ -446,7 +474,7 @@ async function main() {
         state.updateBrief(briefId, { status: 'verified' });
 
         // 4. WRITE
-        let { brief, captions } = await stageWrite({ cfg, brain, idea, sources });
+        let { brief, captions, overBudget } = await stageWrite({ cfg, brain, idea, sources });
         brief = { ...brief, deckId: deckKey, date: today(), topic: idea.topic };
 
         const texts = [
@@ -468,8 +496,14 @@ async function main() {
         if (hard.length) {
           throw new Blocked(`banned.md: ${hard.map((f) => `${f.where} ${f.rule} ${f.detail}`).join('; ')}`);
         }
-        if (soft.length) {
-          await tg.send(`check before posting: ${deckKey} (${idea.topic})\n${soft.map((f) => `${f.where}: ${f.detail}`).join('\n')}`);
+        // Soft findings and copy still over budget after the rewrite: both are
+        // things to look at before posting, neither stops the deck.
+        const softLines = [
+          ...soft.map((f) => `${f.where}: ${f.detail}`),
+          ...(overBudget || []).map((o) => `${o.where}: ${o.chars} characters in ${o.component}.${o.field}, budget ${o.budget}`),
+        ];
+        if (softLines.length) {
+          await tg.send(`check before posting: ${deckKey} (${idea.topic})\n${softLines.join('\n')}`);
         }
 
         const schemaErrors = validate(BRIEF_SCHEMA, brief);

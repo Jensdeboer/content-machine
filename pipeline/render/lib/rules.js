@@ -29,4 +29,10 @@ module.exports = {
   jpegQuality: 92,            // export quality
   layoutGridStep: 20,         // headline top candidates are tried on this grid (slide px)
   pixelChecksMax: 60,         // occlusion renders per cover before the search gives up
+  // component-capacity.json (measured by capacity.js). Copy is grown from the
+  // reference slide a field at a time, every field together, so the budgets
+  // hold simultaneously rather than one at a time.
+  copyBudgetMargin: 0.9,      // the write stage is told 90% of the growth that fit, so a long word or an accent phrase does not spend the whole margin
+  copyBudgetMaxScale: 2,      // never offer more than 2x the reference copy: past that the constraint is editorial (voice.md, deck-rules.md), and a field allowed to balloon takes the space a hero number needs
+  copyBudgetMinHeadroom: 8,   // ...but always offer at least 8 characters more, so a two-character stat value is not capped at six
 };

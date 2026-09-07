@@ -79,6 +79,34 @@ function readCaptions(deck, dir) {
 }
 
 // --------------------------------------------------------------------------
+// The publish gate. README rule 2: every number a post shows traces to a
+// source, or the deck blocks. qa.js decides that and records it as
+// review.publish; a gate the renderer honours and the packet ignores is not a
+// gate, so a deck that fails it never leaves this script. No review at all is a
+// closed gate too: the rule is that the deck traces, not that nobody looked.
+// --------------------------------------------------------------------------
+function publishGate(cfg, deck) {
+  let review = null;
+  if (deck.review) {
+    try { review = JSON.parse(deck.review); } catch (e) { return { ok: false, why: `its qa review in state.db is not JSON (${e.message})` }; }
+  } else {
+    // A deck whose row was rebuilt: the file the renderer wrote sits next to
+    // the slides.
+    for (const dir of [deck.out_dir, path.join(ROOT, cfg.run.outDir, deck.deck_key)]) {
+      const file = dir && path.join(dir, 'review.json');
+      if (file && fs.existsSync(file)) {
+        try { review = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { /* no usable review */ }
+        break;
+      }
+    }
+  }
+  if (!review || !review.publish) return { ok: false, why: 'it has no qa review' };
+  if (review.publish.ok) return { ok: true };
+  const blocks = (review.publish.blocks || []).map((b) => `slide ${b.slide} ${b.rule}${b.figure ? ` "${b.figure}"` : ''}`);
+  return { ok: false, why: `the publish gate is closed: ${blocks.join('; ') || 'no reason recorded'}` };
+}
+
+// --------------------------------------------------------------------------
 // The sound. sounds.md is the week's shortlist, rewritten every Sunday:
 //   | # | Sound | Platform | Why it fits | Used on |
 // A suggestion only: the sound is picked in the app at the last tap, and this
@@ -136,6 +164,7 @@ async function main() {
 
   const finish = (code) => { state.close(); process.exit(code); };
   let deck = null;
+  const skipped = [];
 
   try {
     // 1. The kill switch, before anything else happens.
@@ -145,11 +174,24 @@ async function main() {
       return finish(0);
     }
 
-    // 2. The oldest deck that passed qa and has not been sent.
-    deck = state.oldestPendingDeck(brand);
+    // 2. The oldest deck that passed qa, has not been sent, and passes the
+    //    publish gate. One that fails the gate is stepped over rather than
+    //    waited on: the next deck in the queue may be clean. Every skip is
+    //    named in the message, because a deck silently held back is a deck
+    //    nobody fixes.
+    const queue = state.pendingDecks(brand);
+    for (const candidate of queue) {
+      const gate = publishGate(cfg, candidate);
+      if (gate.ok) { deck = candidate; break; }
+      skipped.push(`${candidate.deck_key}${candidate.topic ? ` (${candidate.topic})` : ''} — ${gate.why}`);
+      log(`skipping ${candidate.deck_key}: ${gate.why}`);
+    }
     if (!deck) {
-      await mustSend(tg, 'empty queue notice', () => tg.send(`${brand}: no approved deck for today.`));
-      log('no pending deck.');
+      await mustSend(tg, 'empty queue notice', () => tg.send([
+        `${brand}: no approved deck for today.`,
+        ...(skipped.length ? ['', `${skipped.length} deck(s) skipped:`, ...skipped] : []),
+      ].join('\n')));
+      log(`no packetable deck (${queue.length} pending, ${skipped.length} skipped).`);
       return finish(0);
     }
 
@@ -184,11 +226,11 @@ async function main() {
     // 4. The packet, in posting order. An empty shortlist is said twice: once
     //    at the top, where it cannot be missed at 14:00, and once at the end
     //    where the sound belongs.
-    const header = [
-      sound ? null : 'NO SOUND SHORTLIST',
-      [deck.deck_key, deck.series, deck.topic].filter(Boolean).join(' · '),
-    ].filter(Boolean).join('\n');
-    await mustSend(tg, 'header', () => tg.send(header));
+    const headerLines = [];
+    if (!sound) headerLines.push('NO SOUND SHORTLIST');
+    headerLines.push([deck.deck_key, deck.series, deck.topic].filter(Boolean).join(' · '));
+    if (skipped.length) headerLines.push('', `${skipped.length} deck(s) skipped:`, ...skipped);
+    await mustSend(tg, 'header', () => tg.send(headerLines.join('\n')));
 
     // Documents, never photos: sendPhoto re-compresses, and the cover is
     // already a jpg, so a photo message posts a twice-compressed cover.

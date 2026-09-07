@@ -205,18 +205,19 @@ class State {
     return this.db.prepare('SELECT deck_key FROM decks').all().map((r) => r.deck_key);
   }
 
-  // The packet takes the oldest deck still waiting for one. Brand lives on the
-  // run, and series on the brief, so the header line costs one join each.
-  oldestPendingDeck(brand) {
+  // Every deck still waiting for a packet, oldest first. The packet takes the
+  // first that passes the publish gate, so it needs the queue rather than the
+  // head of it. Brand lives on the run and series on the brief, so the header
+  // line costs one join each.
+  pendingDecks(brand) {
     return this.db.prepare(`SELECT d.deck_key, d.topic, d.out_dir, d.reason, d.created_at,
-                                   d.draft_id, d.draft_pushed_at,
+                                   d.draft_id, d.draft_pushed_at, d.review,
                                    b.series, b.captions
                             FROM decks d
                             JOIN runs r ON r.id = d.run_id
                             LEFT JOIN briefs b ON b.id = d.brief_id
                             WHERE d.status = 'pending' AND r.brand = ?
-                            ORDER BY d.created_at, d.id
-                            LIMIT 1`).get(brand) || null;
+                            ORDER BY d.created_at, d.id`).all(brand);
   }
 
   // The push happened, and it happens once. Written the moment the provider

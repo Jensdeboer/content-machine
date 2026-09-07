@@ -6,6 +6,7 @@
   "scripts": {
     "render": "node pipeline/render/index.js",
     "qa": "node pipeline/render/qa.js",
+    "capacity": "node pipeline/render/capacity.js",
     "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json"
   },
   "repository": {

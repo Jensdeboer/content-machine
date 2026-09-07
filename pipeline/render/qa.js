@@ -25,6 +25,28 @@ function hamming(a, b) {
 }
 const inside = (r, box) => r.x >= box.x - 0.5 && r.y >= box.y - 0.5 && r.x + r.w <= box.x + box.w + 0.5 && r.y + r.h <= box.y + box.h + 0.5;
 
+// The one definition of "the copy does not fit": clipped boxes, text outside
+// the canvas, body type outside the safe zone, content pushing the footer off.
+// Exported because capacity.js measures the write stage's budgets against it —
+// what blocks a deck here is what sets the budget there, or the budget is a
+// guess about a different rule.
+function textOverflowFlags(audit, { canvasBox, safeBox, isCover }) {
+  const out = [];
+  const over = (detail) => out.push({ rule: 'text-overflow', detail });
+  for (const t of audit.texts) {
+    if (t.scrollOverflow && t.whiteSpace === 'nowrap' && t.role !== 'credit') over(`"${t.text.slice(0, 40)}" is wider than its box (${t.scrollW} > ${t.clientW})`);
+    for (const r of t.rects) {
+      if (t.role === 'credit') continue; // deliberately truncated with an ellipsis; the untruncated text lays out wider than its box
+      if (!inside(r, canvasBox)) over(`"${t.text.slice(0, 40)}" leaves the canvas`);
+      else if (!isCover && !inside(r, safeBox)) over(`"${t.text.slice(0, 40)}" leaves the ${safeBox.w}x${safeBox.h} safe zone`);
+      else if (isCover && t.role === 'headline-line' && (r.x < safeBox.x - 0.5 || r.x + r.w > safeBox.x + safeBox.w + 0.5)) over(`headline line "${t.text}" exceeds the ${safeBox.w} measure`);
+    }
+  }
+  const footer = audit.roles.find((r) => r.role === 'footer' || r.role === 'cta-footer');
+  if (footer && footer.rect.y + footer.rect.h > canvasBox.h + 0.5) over('content pushes the footer off the canvas');
+  return out;
+}
+
 async function review(outDir, opts = {}) {
   const deck = JSON.parse(fs.readFileSync(path.join(outDir, 'deck.json'), 'utf8'));
   const brandDir = opts.brandDir || path.join(ROOT, deck.brand);
@@ -50,23 +72,16 @@ async function review(outDir, opts = {}) {
       const a = await page.evaluate(() => window.__pv.audit());
       const accentCount = await page.evaluate(() => document.querySelectorAll('[data-accent]').length);
 
-      // Text overflow: clipped boxes, text outside the canvas, body type outside the safe zone.
+      // Text overflow, by the shared rule.
+      for (const f of textOverflowFlags(a, { canvasBox, safeBox, isCover })) flag(slide, f.rule, f.detail);
+      // Floor: 24 (tokens.json size.floor).
       for (const t of a.texts) {
-        if (t.scrollOverflow && t.whiteSpace === 'nowrap' && t.role !== 'credit') flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" is wider than its box (${t.scrollW} > ${t.clientW})`);
-        for (const r of t.rects) {
-          if (t.role === 'credit') continue; // deliberately truncated with an ellipsis; the untruncated text lays out wider than its box
-          if (!inside(r, canvasBox)) flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" leaves the canvas`);
-          else if (!isCover && !inside(r, safeBox)) flag(slide, 'text-overflow', `"${t.text.slice(0, 40)}" leaves the 888x1158 safe zone`);
-          else if (isCover && t.role === 'headline-line' && (r.x < safeBox.x - 0.5 || r.x + r.w > safeBox.x + safeBox.w + 0.5)) flag(slide, 'text-overflow', `headline line "${t.text}" exceeds the 888 measure`);
-        }
-        // Floor: 24 (tokens.json size.floor).
         if (t.fontSize < RULES.floorPx - 0.01) flag(slide, 'below-floor', `"${t.text.slice(0, 40)}" is ${t.fontSize}px, floor is ${RULES.floorPx}`);
       }
       const footer = a.roles.find((r) => r.role === 'footer' || r.role === 'cta-footer');
       const credit = a.texts.find((t) => t.role === 'credit');
       if (credit && credit.rects.length > 1) flag(slide, 'credit-wraps', 'source credit runs to more than one line; deck-rules ask for one', 'warn');
       if (!isCover && !footer) flag(slide, 'footer-missing', 'every slide except the cover carries the footer');
-      if (footer && footer.rect.y + footer.rect.h > canvasBox.h + 0.5) flag(slide, 'text-overflow', 'content pushes the footer off the canvas');
 
       // Accent: at most one accented element per slide.
       if (!isCover && accentCount > 1) flag(slide, 'accent-count', `${accentCount} accented elements; at most one per slide`);
@@ -194,4 +209,4 @@ if (require.main === module) {
   }).catch((e) => { console.error(e.stack || e); process.exit(1); });
 }
 
-module.exports = { review, print };
+module.exports = { review, print, textOverflowFlags };
