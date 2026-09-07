@@ -33,3 +33,6 @@ saves per 1k reach and follows per post — never likes.
 3. 5-slide vs 7-slide decks
 4. Number covers vs sentence covers for the Science series
 5. Question vs stat as slide 2
+6. IG hashtags vs none — does a hashtag block move non-follower reach?
+   (hashtags_enabled in config.md; write() adds 3-5 topical tags as a last
+   line under the Instagram caption, TikTok stays plain search phrases)

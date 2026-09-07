@@ -323,13 +323,42 @@ async function stageVerify({ cfg, brain, idea, evidence }) {
 // 4. WRITE — headline, slide copy, both captions. Linted against banned.md,
 //    which calls its list hard failures, so a block there blocks the deck.
 // --------------------------------------------------------------------------
-const WRITE_SHAPE = `{
+function writeShape(cfg) {
+  const hashtags = cfg.captions.hashtags
+    ? ',\n    "hashtags": ["#tag", "..."]  // 3 to 5 topical Instagram hashtags, this field only, never in the caption text'
+    : '';
+  return `{
   "brief": "a complete deck brief object matching pipeline/render/brief.schema.json, without deckId, date or topic (the runner fills those in)",
   "captions": {
-    "instagram": "clean caption, hook line first, no hashtags",
-    "tiktok": "same story, with two or three plain search phrases woven in"
+    "instagram": "clean caption, hook line first, no hashtags in the text",
+    "tiktok": "same story, with two or three plain search phrases woven in, no hashtags"${hashtags}
   }
 }`;
+}
+
+// The hashtag block, when config.md turns it on: 3 to 5 tags, one final line
+// under the Instagram caption after a blank line, never in the caption text.
+// The model's list is normalised here (leading #, lowercase, letters, digits
+// and underscores only, no duplicates, at most five); fewer than three left is
+// no block at all rather than a thin one.
+const HASHTAG_MIN = 3;
+const HASHTAG_MAX = 5;
+function normaliseHashtags(list) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    const tag = '#' + String(raw).trim().replace(/^#+/, '').toLowerCase();
+    if (!/^#[\p{L}\p{N}_]+$/u.test(tag) || seen.has(tag)) continue;
+    seen.add(tag);
+    out.push(tag);
+    if (out.length === HASHTAG_MAX) break;
+  }
+  return out;
+}
+
+function withHashtagBlock(caption, hashtags) {
+  return `${String(caption).trimEnd()}\n\n${hashtags.join(' ')}`;
+}
 
 async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt = 1 }) {
   const budgets = CAPACITY ? [
@@ -366,11 +395,17 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt =
     '- Seven slides: a cover, five middle slides carrying point numbers 01-05 in order, and cta last.',
     '- The cta takes no input but its one line of source credit.',
     '- Copy obeys banned.md exactly. It is a hard list, not a preference.',
+    ...(cfg.captions.hashtags ? [
+      '- captions.hashtags: 3 to 5 Instagram hashtags specific to this deck\'s topic, lowercase, each starting with #.',
+      '  This field is the only place a hashtag goes. banned.md\'s no-hashtags rule still holds for every slide',
+      '  and for both caption texts; the runner appends this list under the Instagram caption itself.',
+      '  The TikTok caption keeps its plain search phrases and gets no hashtags.',
+    ] : []),
     ...budgets,
     previousErrors ? `\nYour previous attempt did not validate:\n${previousErrors}\nFix exactly these and return the whole object again.` : '',
   ].join('\n');
 
-  const out = await callModel({ stage: 'write', prompt, schema: WRITE_SHAPE, config: cfg, log });
+  const out = await callModel({ stage: 'write', prompt, schema: writeShape(cfg), config: cfg, log });
   if (!out.brief || typeof out.brief !== 'object') throw new Error('write returned no brief object');
 
   // One rewrite for copy that will not fit its component. Cheaper than a
@@ -384,7 +419,9 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt =
     const detail = over.map((o) => `${o.where} (${o.component}.${o.field}) is ${o.chars} characters; the budget is ${o.budget}`).join('\n');
     return stageWrite({ cfg, brain, idea, sources, attempt: 2, previousErrors: `The copy does not fit the components:\n${detail}\nCut these to the budget. Everything else in the deck stays as it is.` });
   }
-  return { brief: out.brief, captions: out.captions || {}, overBudget: over };
+  const captions = { ...(out.captions || {}) };
+  captions.hashtags = cfg.captions.hashtags ? normaliseHashtags(captions.hashtags) : [];
+  return { brief: out.brief, captions, overBudget: over };
 }
 
 // --------------------------------------------------------------------------
@@ -489,10 +526,20 @@ async function main() {
           ]),
           { where: 'captions.instagram', text: captions.instagram },
           { where: 'captions.tiktok', text: captions.tiktok },
+          // The words inside the tags face the ban list too; the # itself is
+          // the one thing banned.md allows here, so it is stripped for lint.
+          { where: 'captions.hashtags', text: captions.hashtags.map((h) => h.slice(1)).join(' ') },
         ].filter((t) => t.text);
         const findings = lintCopy(texts, brain.files.banned, { quotedSources: sources.map((s) => s.quote) });
         const hard = lintBlocks(findings);
         const soft = lintFlags(findings);
+        if (cfg.captions.hashtags) {
+          if (captions.hashtags.length >= HASHTAG_MIN) {
+            captions.instagram = withHashtagBlock(captions.instagram, captions.hashtags);
+          } else {
+            soft.push({ where: 'captions.hashtags', detail: `hashtags_enabled is on but write returned ${captions.hashtags.length} usable tag(s); the minimum is ${HASHTAG_MIN}, so the caption went out without a block` });
+          }
+        }
         if (hard.length) {
           throw new Blocked(`banned.md: ${hard.map((f) => `${f.where} ${f.rule} ${f.detail}`).join('; ')}`);
         }
@@ -564,4 +611,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { driftCheck, nextDeckKey };
+module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock };

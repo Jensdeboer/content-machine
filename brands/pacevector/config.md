@@ -64,11 +64,18 @@ endpoint - see Publishing above.
 
 ## Captions
 
-- Instagram: clean. Hook line first, no hashtags, no search padding.
+- Instagram: clean. Hook line first, no hashtags in the caption text, no
+  search padding.
+- `hashtags_enabled`: no. Off by default; flipped by hand for the growth.md
+  experiment. When yes, the write stage produces 3-5 topical Instagram
+  hashtags as a separate field and the run appends them as one final line
+  under the caption, after a blank line. They are never woven into the
+  caption, and TikTok stays plain search phrases either way.
 - TikTok: **2-3 plain search phrases allowed** in the first line, woven in
   naturally - "easy run pace", "marathon taper", "how to start running".
   Not hashtags; phrases people actually type into search.
-- Both: the ban list in banned.md applies without exception.
+- Both: the ban list in banned.md applies without exception to the caption
+  text and to the words inside any hashtag.
 
 ## Disclaimer
 
