@@ -7,10 +7,11 @@
     "render": "node pipeline/render/index.js",
     "qa": "node pipeline/render/qa.js",
     "capacity": "node pipeline/render/capacity.js",
-    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json --out out/test && node pipeline/render/test/pv07-dense-zone.js && node pipeline/test/provider-preflight.js",
+    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json --out out/test && node pipeline/render/test/pv07-dense-zone.js && node pipeline/test/provider-preflight.js && node pipeline/test/inbox.js",
     "test:qa": "node pipeline/render/qa.js out/test/PV-01",
     "test:regress": "node pipeline/render/test/pv07-dense-zone.js",
-    "test:packet": "node pipeline/test/provider-preflight.js"
+    "test:packet": "node pipeline/test/provider-preflight.js",
+    "test:inbox": "node pipeline/test/inbox.js"
   },
   "repository": {
     "type": "git",

@@ -81,8 +81,30 @@ CREATE TABLE IF NOT EXISTS decks (
   draft_pushed_at TEXT,                    -- set once the push succeeded; the push is not repeated
   packet_sent_at TEXT,                     -- when packet.js sent the deck to Telegram
   sound        TEXT,                       -- the sound the packet suggested; the rotation rule reads it back
+  approved_at  TEXT,                       -- "ok PV-07" from the Telegram inbox; a log, the deck was pending anyway
+  skipped_on   TEXT,                       -- "skip PV-07": the packet steps over it on this date only
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL
+);
+
+-- The Telegram inbox (pipeline/inbox.js, the only reader of the bot's
+-- updates). The offset is the next update the reader asks Telegram for; every update
+-- seen is recorded before it is acted on, so a reply that fails to send can
+-- never make the action run twice.
+CREATE TABLE IF NOT EXISTS inbox_state (
+  key          TEXT PRIMARY KEY,
+  value        TEXT
+);
+CREATE TABLE IF NOT EXISTS inbox_messages (
+  update_id    INTEGER PRIMARY KEY,
+  chat_id      TEXT,
+  sender       TEXT,
+  text         TEXT,
+  honoured     INTEGER NOT NULL,           -- 0 when the chat id was not ours
+  action       TEXT,                       -- ok | no | skip | stop | go | status | help | ignored
+  deck_key     TEXT,
+  reply        TEXT,
+  created_at   TEXT NOT NULL
 );
 
 -- Written by the confirm step (step 06), not by run.js: posted.jsonl and this
@@ -127,7 +149,7 @@ class State {
   // this file may never drop what a previous run recorded.
   migrate() {
     const columns = this.db.prepare('PRAGMA table_info(decks)').all().map((c) => c.name);
-    for (const col of ['draft_id', 'draft_pushed_at', 'packet_sent_at', 'sound']) {
+    for (const col of ['draft_id', 'draft_pushed_at', 'packet_sent_at', 'sound', 'approved_at', 'skipped_on']) {
       if (!columns.includes(col)) this.db.exec(`ALTER TABLE decks ADD COLUMN ${col} TEXT`);
     }
   }
@@ -218,7 +240,7 @@ class State {
   // line costs one join each.
   pendingDecks(brand) {
     return this.db.prepare(`SELECT d.deck_key, d.topic, d.out_dir, d.reason, d.created_at,
-                                   d.draft_id, d.draft_pushed_at, d.review,
+                                   d.draft_id, d.draft_pushed_at, d.review, d.skipped_on, d.approved_at,
                                    b.series, b.captions, b.brief_json
                             FROM decks d
                             JOIN runs r ON r.id = d.run_id
@@ -255,6 +277,54 @@ class State {
                             FROM decks d JOIN runs r ON r.id = d.run_id
                             WHERE d.packet_sent_at IS NOT NULL AND r.brand = ?
                             ORDER BY d.packet_sent_at, d.id`).all(brand);
+  }
+
+  // --- the Telegram inbox ---------------------------------------------------
+  deckByKey(deckKey) {
+    return this.db.prepare(`SELECT d.*, b.series, b.brief_json, b.status AS brief_status, r.brand
+                            FROM decks d LEFT JOIN briefs b ON b.id = d.brief_id JOIN runs r ON r.id = d.run_id
+                            WHERE d.deck_key = ?`).get(deckKey) || null;
+  }
+
+  inboxOffset() {
+    const r = this.db.prepare("SELECT value FROM inbox_state WHERE key = 'telegram_offset'").get();
+    return r ? Number(r.value) : 0;
+  }
+
+  setInboxOffset(offset) {
+    this.db.prepare("INSERT INTO inbox_state (key, value) VALUES ('telegram_offset', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(offset));
+  }
+
+  inboxSeen(updateId) {
+    return !!this.db.prepare('SELECT 1 FROM inbox_messages WHERE update_id = ?').get(updateId);
+  }
+
+  recordInboxMessage(m) {
+    this.db.prepare(`INSERT OR IGNORE INTO inbox_messages (update_id, chat_id, sender, text, honoured, action, deck_key, reply, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(m.updateId, m.chatId == null ? null : String(m.chatId), m.sender || null, m.text || null, m.honoured ? 1 : 0, m.action || null, m.deckKey || null, m.reply || null, now());
+  }
+
+  updateInboxMessage(updateId, fields) {
+    const cols = [], vals = [];
+    for (const [k, v] of Object.entries(fields)) { cols.push(`${k} = ?`); vals.push(v); }
+    vals.push(updateId);
+    this.db.prepare(`UPDATE inbox_messages SET ${cols.join(', ')} WHERE update_id = ?`).run(...vals);
+  }
+
+  approveDeck(deckKey) { const t = now(); this.updateDeck(deckKey, { approved_at: t }); return t; }
+
+  skipDeck(deckKey, date) { this.updateDeck(deckKey, { skipped_on: date }); }
+
+  rejectDeck(deckKey, reason) {
+    const d = this.deckByKey(deckKey);
+    this.updateDeck(deckKey, { status: 'rejected', reason });
+    if (d && d.brief_id) this.updateBrief(d.brief_id, { status: 'rejected', reason });
+  }
+
+  deckCounts(brand) {
+    const rows = this.db.prepare(`SELECT d.status, COUNT(*) n FROM decks d JOIN runs r ON r.id = d.run_id WHERE r.brand = ? GROUP BY d.status`).all(brand);
+    return Object.fromEntries(rows.map((r) => [r.status, r.n]));
   }
 
   publishedDecks() {

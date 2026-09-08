@@ -238,7 +238,15 @@ async function main() {
     //    named in the message, because a deck silently held back is a deck
     //    nobody fixes.
     const queue = state.pendingDecks(brand);
+    const todayIso = new Date().toISOString().slice(0, 10);
     for (const candidate of queue) {
+      // "skip PV-07" from the Telegram inbox: out of today's packet, back in
+      // the queue tomorrow. Rejected decks are not pending and never appear.
+      if (candidate.skipped_on === todayIso) {
+        skipped.push(`${candidate.deck_key}${candidate.topic ? ` (${candidate.topic})` : ''} — skipped for today from Telegram`);
+        log(`skipping ${candidate.deck_key}: skipped for today from Telegram`);
+        continue;
+      }
       const gate = publishGate(cfg, candidate);
       if (gate.ok) { deck = candidate; break; }
       skipped.push(`${candidate.deck_key}${candidate.topic ? ` (${candidate.topic})` : ''} — ${gate.why}`);

@@ -4,9 +4,10 @@
 // stdout and are recorded on the run row, because a missing notifier must never
 // be the reason a night fails.
 //
-// This module only ever sends. There is no getUpdates here and there must never
-// be one: two pollers on one bot token silently steal each other's updates, so
-// whatever ends up reading replies has to be the only thing reading them.
+// This module only ever sends. Reading the bot's updates lives in
+// pipeline/inbox.js and nowhere else: two pollers on one bot token silently
+// steal each other's updates, so exactly one process reads them, and
+// inbox.js asserts at startup that it is the only file that does.
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
@@ -45,6 +46,21 @@ class Telegram {
     ];
     const { contentType, body } = build(parts);
     return this.call('sendDocument', { 'content-type': contentType }, body, label, 60000);
+  }
+
+  // A photo, for the morning summary: preview quality is the point there,
+  // one glance per cover. Slides that get posted still go as documents.
+  async sendPhoto(file, { caption } = {}) {
+    const label = `photo ${path.basename(file)}${caption ? ` "${caption}"` : ''}`;
+    this.sent.push(label);
+    if (!this.enabled) return this.offline(`${label} (${file})`);
+    const parts = [
+      { name: 'chat_id', value: this.chatId },
+      ...(caption ? [{ name: 'caption', value: caption }] : []),
+      { name: 'photo', filename: path.basename(file), contentType: contentTypeFor(file), data: fs.readFileSync(file) },
+    ];
+    const { contentType, body } = build(parts);
+    return this.call('sendPhoto', { 'content-type': contentType }, body, label, 60000);
   }
 
   offline(what) {

@@ -28,3 +28,11 @@ MAILTO=""
 # 03:00 — the deadman: alert when the nightly left no run row for today. An hour
 # after the run, so a slow night is finished rather than reported dead.
 0 3 * * * /home/jens/content-machine/pipeline/cron.sh deadman node pipeline/deadman.js pacevector
+
+# Every 5 minutes — the Telegram inbox: "ok PV-07", "no PV-07 <reason>",
+# "skip PV-07", "stop", "go", "status". The only reader of the bot's updates.
+# Its own lock: a five-minute tick must never be skipped (and alerted) because
+# the nightly or the packet holds the shared one, and it never overlaps them
+# in any way that matters (SQLite WAL; the brain files it edits are read once
+# at their start).
+*/5 * * * * CRON_LOCK=/home/jens/.cache/content-machine/inbox.lock /home/jens/content-machine/pipeline/cron.sh inbox node pipeline/inbox.js pacevector

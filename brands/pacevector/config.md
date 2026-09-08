@@ -219,3 +219,15 @@ a no is out whatever it scored.
 - Stage failures, dead feeds, drift between state.db and posted.jsonl, and the
   run summary all go here. With the variables unset the run still completes:
   messages go to stdout and are recorded on the run row.
+- The morning summary carries one photo per pending deck: the cover, captioned
+  with the deck key, series and headline. Approve or reject from those.
+- Replies are read by `pipeline/inbox.js` every five minutes, the only process
+  that ever reads the bot's updates. Only messages from this chat id count;
+  anything else is logged and ignored. Commands, case-insensitive, one per
+  message, each confirmed with a reply naming the deck:
+  - `ok PV-07` — stays pending (approval logged)
+  - `no PV-07 <reason>` — rejected; the reason goes to memory/rejected.md
+    under the topic slug, scope topic
+  - `skip PV-07` — out of today's packet only, pending again tomorrow
+  - `stop` / `go` — flips `publishing_enabled` below
+  - `status` — pending/blocked counts and the next deck in the queue

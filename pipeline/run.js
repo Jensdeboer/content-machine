@@ -621,7 +621,7 @@ async function main() {
           ? `${review.summary.warn} warning(s)`
           : review.flags.filter((f) => f.severity === 'block').map((f) => `slide ${f.slide} ${f.rule}: ${f.detail}`).join('; ');
         state.addDeck(runId, briefId, { deckKey, topic: idea.topic, status, reason, outDir: deckDir, review });
-        summary.decks.push({ deckKey, topic: idea.topic, status, reason });
+        summary.decks.push({ deckKey, topic: idea.topic, status, reason, series: brief.series, headline: brief.cover.headline, cover: path.join(deckDir, '01.jpg') });
         log(`${deckKey} (${idea.topic}): ${status} — ${reason}`);
         if (status === 'blocked') {
           await tg.send(`blocked by qa: ${deckKey} (${idea.topic})\n${reason}`);
@@ -648,6 +648,15 @@ async function main() {
     await tg.send(lines.join('\n'));
     log('\n' + lines.join('\n'));
 
+    // One photo per pending deck: the cover, with the key, series and headline
+    // in the caption. This is what "ok PV-07" / "no PV-07 <reason>" in the
+    // Telegram inbox (pipeline/inbox.js) is answered from.
+    for (const d of pending) {
+      const caption = [d.deckKey, d.series, d.headline].filter(Boolean).join(' · ');
+      if (d.cover && fs.existsSync(d.cover)) await tg.sendPhoto(d.cover, { caption });
+      else await tg.send(`${caption}\n(no cover image at ${d.cover})`);
+    }
+    if (pending.length) await tg.send(`Reply "ok PV-xx", "no PV-xx <reason>" or "skip PV-xx" for any of these; "status" for the queue.`);
     state.close();
     process.exit(0);
   } catch (e) {
