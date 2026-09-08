@@ -219,7 +219,7 @@ class State {
   pendingDecks(brand) {
     return this.db.prepare(`SELECT d.deck_key, d.topic, d.out_dir, d.reason, d.created_at,
                                    d.draft_id, d.draft_pushed_at, d.review,
-                                   b.series, b.captions
+                                   b.series, b.captions, b.brief_json
                             FROM decks d
                             JOIN runs r ON r.id = d.run_id
                             LEFT JOIN briefs b ON b.id = d.brief_id

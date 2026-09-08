@@ -157,10 +157,25 @@ function loadConfig(root, brand) {
   const endpoint = bare(cfg.value('Provider', 'Photo endpoint')).split(/\s+/);
   const keyEnv = (bare(cfg.value('Provider', 'Auth header')).match(/<([A-Z0-9_]+)>/) || [])[1];
   if (!keyEnv) throw new Error('config.md "## Provider" auth header names no <ENV_VAR> for the key');
+  // The provider's documented limits live in the same section, so a change in
+  // the provider's docs is an edit there, and the pre-flight in provider.js
+  // reads them from here.
+  const mentions = (bare(cfg.value('Provider', 'TikTok description limit')).match(/(\d+)\s*mentions/i) || [])[1];
+  const resolution = bare(cfg.value('Provider', 'Photo resolution'));
   cfg.provider = {
     user: bare(userRow[1]),
     photoUrl: endpoint[endpoint.length - 1],
     keyEnv,
+    limits: {
+      titleChars: cfg.number('Provider', 'TikTok title limit'),
+      descriptionChars: cfg.number('Provider', 'TikTok description limit'),
+      descriptionMentions: mentions ? Number(mentions) : null,
+      photosMax: cfg.number('Provider', 'Photos per post'),
+      photoBytesMax: cfg.number('Provider', 'Photo size limit') * 1024 * 1024,
+      photoFormats: bare(cfg.value('Provider', 'Photo formats')).split(/[,\s]+/).filter(Boolean).map((f) => f.toLowerCase()),
+      photoShortSideMax: Number((resolution.match(/(\d+)\s*px\s*short/i) || [])[1]) || null,
+      photoLongSideMax: Number((resolution.match(/(\d+)\s*px\s*long/i) || [])[1]) || null,
+    },
   };
 
   // --- Telegram -----------------------------------------------------------

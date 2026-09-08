@@ -48,7 +48,18 @@ Three strings, all similar, none interchangeable:
 - Auth header: `Authorization: Apikey <UPLOADPOST_KEY>` (key in `.env` on the
   box, never in this repo).
 - Photo endpoint: `POST https://api.upload-post.com/api/upload_photos`
-- Fields: `user`, `title`, `platform[]`, `photos[]` (one per slide, in order).
+- Fields: `user`, `title`, `description`, `platform[]`, `post_mode`,
+  `photos[]` (one per slide, in order).
+- `post_mode` is **`MEDIA_UPLOAD`**, hardcoded in `pipeline/lib/provider.js`:
+  the photos land in the TikTok inbox as a draft finished in-app, where the
+  sound is added. The provider's default when the field is omitted is
+  `DIRECT_POST`, which publishes at once; on 8 Sep 2026 a push without the
+  field went live. It is not a setting and it is not read from this file:
+  there is no situation in which the pipeline publishes directly, and the
+  provider module refuses to build a request that says anything else.
+- `description` is always sent and is the TikTok caption only. The provider
+  reuses `title` for an omitted description, which put the headline on the
+  post twice.
 
 Example, as observed:
 
@@ -61,6 +72,28 @@ Example, as observed:
 
 The pipeline calls this for TikTok drafts only. It never calls a direct-post
 endpoint - see Publishing above.
+
+`title` is the draft's label in TikTok's draft list, nothing more; the packet
+derives it from the deck's cover headline, cut to the limit at a word
+boundary. `description` carries the TikTok caption into the draft. The
+Instagram caption never goes through the provider.
+
+Limits, as the provider documents them (docs.upload-post.com/api/upload-photo
+and /api/photo-requirements, read 8 Sep 2026). `pipeline/lib/provider.js`
+checks every field against these before the HTTP call, so a field over its
+limit fails here with both numbers in the message, never as a 400 from the
+provider.
+
+- TikTok title limit: 90 characters
+- TikTok description limit: 4000 characters, 30 mentions
+- Photos per post: 35
+- Photo size limit: 20 MB each
+- Photo formats: jpg, jpeg, webp
+- Photo resolution: 1080 px short side, 1920 px long side. Documented as a
+  requirement, but the provider also documents auto-transcoding and no push
+  has yet shown which applies to a 2160x2700 slide, so the packet warns on
+  this one rather than blocks. Flip it to a block once a push proves the
+  provider rejects oversize images.
 
 ## Captions
 

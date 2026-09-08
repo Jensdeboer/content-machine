@@ -3,6 +3,11 @@
 // The 14:00 packet for one brand.
 //
 //   node pipeline/packet.js pacevector
+//   node pipeline/packet.js pacevector --dry-run
+//
+// --dry-run does everything but the provider push and the Telegram sends,
+// and prints exactly what each would have carried. Nothing is recorded in
+// state.db or deck.json. Run it before every change to this file.
 //
 // One deck a day, turned into a Telegram thread you can post from in a few
 // taps: the slides as documents, each caption alone in its own message, the
@@ -81,6 +86,31 @@ function readCaptions(deck, dir) {
   throw new Error('no captions in state.db or captions.json');
 }
 
+// The draft's title is a label in TikTok's draft list and nothing more; the
+// caption never goes through the provider. It comes from the cover headline,
+// cut to the provider's limit at a word boundary. state.db has the brief the
+// write stage produced; brief.json next to the slides is the fallback.
+function coverHeadline(deck, dir) {
+  const sources = [
+    { what: 'state.db', text: deck.brief_json },
+    { what: 'brief.json', text: fs.existsSync(path.join(dir, 'brief.json')) ? fs.readFileSync(path.join(dir, 'brief.json'), 'utf8') : null },
+  ];
+  for (const s of sources) {
+    if (!s.text) continue;
+    try { const b = JSON.parse(s.text); if (b.cover && b.cover.headline) return String(b.cover.headline); } catch (e) { /* try the next */ }
+  }
+  return null;
+}
+
+function draftTitle(headline, max, fallback) {
+  let t = String(headline || fallback || '').replace(/\s+/g, ' ').trim();
+  if (!t) return String(fallback || '').slice(0, max);
+  if (t.length <= max) return t;
+  const cut = t.lastIndexOf(' ', max);
+  t = (cut > 0 ? t.slice(0, cut) : t.slice(0, max)).replace(/[\s,;:.!?\u2014-]+$/u, '');
+  return t || String(fallback || '').slice(0, max);
+}
+
 // --------------------------------------------------------------------------
 // The publish gate. README rule 2: every number a post shows traces to a
 // source, or the deck blocks. qa.js decides that and records it as
@@ -154,16 +184,34 @@ async function mustSend(tg, what, send) {
   return res;
 }
 
+// The dry run's Telegram: prints each message in order, sends nothing.
+class DryTelegram {
+  constructor() { this.n = 0; }
+  async send(text) { this.n++; log(`[dry-run] telegram message ${this.n}:\n${String(text).trim().split('\n').map((l) => '    ' + l).join('\n')}`); return { ok: true }; }
+  async sendDocument(file) { this.n++; log(`[dry-run] telegram message ${this.n}: document ${path.relative(ROOT, file)} (${fs.statSync(file).size} bytes)`); return { ok: true }; }
+}
+
+function printPush(push) {
+  log('[dry-run] upload-post request that would be sent:');
+  for (const f of push.fields) {
+    if (f.file) log(`    ${f.name} = ${path.relative(ROOT, f.file)} (${f.contentType}, ${f.bytes} bytes)`);
+    else log(`    ${f.name} = ${JSON.stringify(f.value)}`);
+  }
+}
+
 async function main() {
-  const brand = process.argv[2];
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const brand = args.find((a) => !a.startsWith('--'));
   if (!brand) {
-    console.error('usage: node pipeline/packet.js <brand>   e.g. node pipeline/packet.js pacevector');
+    console.error('usage: node pipeline/packet.js <brand> [--dry-run]   e.g. node pipeline/packet.js pacevector');
     process.exit(1);
   }
 
   loadEnvFile();
   const cfg = loadConfig(ROOT, brand);
-  const tg = new Telegram(cfg.telegram);
+  const tg = dryRun ? new DryTelegram() : new Telegram(cfg.telegram);
+  if (dryRun) log('DRY RUN: nothing is pushed, sent or recorded');
   const state = new State(path.join(ROOT, cfg.run.stateDb));
 
   const finish = (code) => { state.close(); process.exit(code); };
@@ -215,18 +263,31 @@ async function main() {
     if (deck.draft_pushed_at) {
       log(`upload-post: draft ${deck.draft_id || 'id unknown'} pushed at ${deck.draft_pushed_at}; not pushing again`);
     } else {
+      // title: the headline, the draft's label. description: the TikTok
+      // caption and nothing else, never the Instagram one, never both. The
+      // mode is fixed inside provider.js: inbox draft, never a direct post.
+      const title = draftTitle(coverHeadline(deck, dir), cfg.provider.limits.titleChars, `${deck.deck_key} ${deck.topic || ''}`);
+      log(`upload-post: draft title "${title}" (${title.length} characters, limit ${cfg.provider.limits.titleChars}); description is the TikTok caption (${captions.tiktok.length} characters, limit ${cfg.provider.limits.descriptionChars}); post_mode ${provider.POST_MODE}`);
       const push = await provider.pushPhotos({
         url: cfg.provider.photoUrl,
         user: cfg.provider.user,
         apiKey: process.env[cfg.provider.keyEnv],
-        title: captions.tiktok,
+        title,
+        description: captions.tiktok,
         files: slides,
         platform: 'tiktok',
+        limits: cfg.provider.limits,
+        log,
+        dryRun,
       });
-      const id = provider.draftId(push.response);
-      const at = state.markDraftPushed(deck.deck_key, id);
-      log(`upload-post: HTTP ${push.status}, ${slides.length} photos into the ${cfg.provider.user} drafts`);
-      log(`upload-post: draft ${id || 'id unknown'} recorded at ${at}`);
+      if (dryRun) {
+        printPush(push);
+      } else {
+        const id = provider.draftId(push.response);
+        const at = state.markDraftPushed(deck.deck_key, id);
+        log(`upload-post: HTTP ${push.status}, ${slides.length} photos to the ${cfg.provider.user} TikTok inbox as a draft`);
+        log(`upload-post: draft ${id || 'id unknown'} recorded at ${at}${id ? '' : `; response: ${push.raw.slice(0, 300)}`}`);
+      }
     }
 
     // 4. The packet, in posting order. An empty shortlist is said twice: once
@@ -252,6 +313,10 @@ async function main() {
 
     // 5. Out of the queue, and the sound into history: the deck row and the
     //    postedRow, so the next packet's rotation reads it from either.
+    if (dryRun) {
+      log(`[dry-run] would mark ${deck.deck_key} packet_sent with sound ${JSON.stringify(sound)} in state.db and deck.json; not recorded`);
+      return finish(0);
+    }
     const at = state.markPacketSent(deck.deck_key, { sound });
     const inDeckJson = recordSoundInDeckJson(dir, sound);
     log(`${deck.deck_key}: packet_sent at ${at}; sound recorded in state.db${inDeckJson ? ' and deck.json postedRow' : ' (no deck.json to update)'}`);
@@ -270,4 +335,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { suggestSound, soundLine, recordSoundInDeckJson, publishGate };
+module.exports = { suggestSound, soundLine, recordSoundInDeckJson, publishGate, draftTitle, coverHeadline };
