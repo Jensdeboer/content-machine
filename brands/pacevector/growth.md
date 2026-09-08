@@ -36,3 +36,7 @@ saves per 1k reach and follows per post — never likes.
 6. IG hashtags vs none — does a hashtag block move non-follower reach?
    (hashtags_enabled in config.md; write() adds 3-5 topical tags as a last
    line under the Instagram caption, TikTok stays plain search phrases)
+7. IG send line vs none — does asking for the send move sends per 1k reach?
+   (send_line_enabled in config.md; write() adds one sentence in voice asking
+   the reader to send the post to someone they run with, as the closing line
+   under the Instagram caption, before any hashtag block)

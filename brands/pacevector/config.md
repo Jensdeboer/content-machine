@@ -104,6 +104,12 @@ provider.
   hashtags as a separate field and the run appends them as one final line
   under the caption, after a blank line. They are never woven into the
   caption, and TikTok stays plain search phrases either way.
+- `send_line_enabled`: no. Off by default; flipped by hand for the growth.md
+  experiment. When yes, the write stage produces one sentence in voice asking
+  the reader to send the post to someone they run with, as a separate field,
+  and the run appends it as a closing line under the Instagram caption after
+  a blank line, before the hashtag block if that is on. One sentence, no
+  exclamation mark, never woven into the caption. TikTok is untouched.
 - TikTok: **2-3 plain search phrases allowed** in the first line, woven in
   naturally - "easy run pace", "marathon taper", "how to start running".
   Not hashtags; phrases people actually type into search.

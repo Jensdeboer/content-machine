@@ -338,6 +338,9 @@ async function stageVerify({ cfg, brain, idea, evidence }) {
 //    which calls its list hard failures, so a block there blocks the deck.
 // --------------------------------------------------------------------------
 function writeShape(cfg) {
+  const sendLine = cfg.captions.sendLine
+    ? ',\n    "sendLine": "one sentence, in voice, asking the reader to send this post to someone they run with; no exclamation mark; this field only, not in the caption text"'
+    : '';
   const hashtags = cfg.captions.hashtags
     ? ',\n    "hashtags": ["#tag", "..."]  // 3 to 5 topical Instagram hashtags, this field only, never in the caption text'
     : '';
@@ -345,9 +348,26 @@ function writeShape(cfg) {
   "brief": "a complete deck brief object matching pipeline/render/brief.schema.json, without deckId, date or topic (the runner fills those in)",
   "captions": {
     "instagram": "clean caption, hook line first, no hashtags in the text",
-    "tiktok": "same story, with two or three plain search phrases woven in, no hashtags"${hashtags}
+    "tiktok": "same story, with two or three plain search phrases woven in, no hashtags"${sendLine}${hashtags}
   }
 }`;
+}
+
+// The send line, when config.md turns it on: one sentence asking the reader
+// to send the post to someone they run with, appended under the Instagram
+// caption after a blank line, before the hashtag block. Normalised here to
+// one sentence with no exclamation mark; an empty result is no line.
+function normaliseSendLine(text) {
+  let t = String(text || '').replace(/\s+/g, ' ').trim().replace(/!/g, '.');
+  if (!t) return '';
+  const m = t.match(/^[^.?]*[.?]/);
+  if (m) t = m[0].trim();
+  else t = `${t}.`;
+  return t.length > 1 ? t : '';
+}
+
+function withClosingLine(caption, line) {
+  return `${String(caption).trimEnd()}\n\n${line}`;
 }
 
 // The hashtag block, when config.md turns it on: 3 to 5 tags, one final line
@@ -409,6 +429,11 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt =
     '- Seven slides: a cover, five middle slides carrying point numbers 01-05 in order, and cta last.',
     '- The cta takes no input but its one line of source credit.',
     '- Copy obeys banned.md exactly. It is a hard list, not a preference.',
+    ...(cfg.captions.sendLine ? [
+      '- captions.sendLine: one sentence, in voice, asking the reader to send this post to someone they run with.',
+      '  No exclamation mark, no hashtag, no emoji. Not in the caption text: the runner appends it as the closing line',
+      '  under the Instagram caption. The TikTok caption gets nothing.',
+    ] : []),
     ...(cfg.captions.hashtags ? [
       '- captions.hashtags: 3 to 5 Instagram hashtags specific to this deck\'s topic, lowercase, each starting with #.',
       '  This field is the only place a hashtag goes. banned.md\'s no-hashtags rule still holds for every slide',
@@ -435,6 +460,7 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt =
   }
   const captions = { ...(out.captions || {}) };
   captions.hashtags = cfg.captions.hashtags ? normaliseHashtags(captions.hashtags) : [];
+  captions.sendLine = cfg.captions.sendLine ? normaliseSendLine(captions.sendLine) : '';
   return { brief: out.brief, captions, overBudget: over };
 }
 
@@ -540,6 +566,7 @@ async function main() {
           ]),
           { where: 'captions.instagram', text: captions.instagram },
           { where: 'captions.tiktok', text: captions.tiktok },
+          { where: 'captions.sendLine', text: captions.sendLine },
           // The words inside the tags face the ban list too; the # itself is
           // the one thing banned.md allows here, so it is stripped for lint.
           { where: 'captions.hashtags', text: captions.hashtags.map((h) => h.slice(1)).join(' ') },
@@ -547,6 +574,14 @@ async function main() {
         const findings = lintCopy(texts, brain.files.banned, { quotedSources: sources.map((s) => s.quote) });
         const hard = lintBlocks(findings);
         const soft = lintFlags(findings);
+        // Closing lines go on after lint, in this order: send line, then hashtags last.
+        if (cfg.captions.sendLine) {
+          if (captions.sendLine) {
+            captions.instagram = withClosingLine(captions.instagram, captions.sendLine);
+          } else {
+            soft.push({ where: 'captions.sendLine', detail: 'send_line_enabled is on but write returned no usable sentence, so the caption went out without a send line' });
+          }
+        }
         if (cfg.captions.hashtags) {
           if (captions.hashtags.length >= HASHTAG_MIN) {
             captions.instagram = withHashtagBlock(captions.instagram, captions.hashtags);
@@ -612,6 +647,7 @@ async function main() {
     ].filter(Boolean);
     await tg.send(lines.join('\n'));
     log('\n' + lines.join('\n'));
+
     state.close();
     process.exit(0);
   } catch (e) {
@@ -625,4 +661,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock };
+module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine };

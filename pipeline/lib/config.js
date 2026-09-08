@@ -140,7 +140,10 @@ function loadConfig(root, brand) {
   // The hashtag block is an experiment (growth.md), off unless config.md says
   // yes. With the key missing it is off: a default the other way would change
   // every caption on a brand that never asked.
-  cfg.captions = { hashtags: cfg.bool('Captions', 'hashtags_enabled', { fallback: 'no' }) };
+  cfg.captions = {
+    hashtags: cfg.bool('Captions', 'hashtags_enabled', { fallback: 'no' }),
+    sendLine: cfg.bool('Captions', 'send_line_enabled', { fallback: 'no' }),
+  };
 
   // --- Kill switch --------------------------------------------------------
   // Read by packet.js before anything else. Off means no packet and no push.
