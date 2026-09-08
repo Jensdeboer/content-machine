@@ -27,6 +27,12 @@ files hard-code without a token are listed in `component-metrics.json`.
 - `lib/cover.js` — fit loop (real font, steps down the token scale), figure
   selection and placement search, zone checks against the manifest's 3x3 alpha
   grid, per-glyph occlusion against the figure's alpha.
+- `lib/lines.js` — the one measurement of where a headline line is: the
+  text's real-font rect from the page. The composer's search and `qa.js` both
+  read it, so what passes the search passes QA. Every line is zone-tested,
+  whether or not it overlaps the figure box.
+- `test/pv07-dense-zone.js` — regression for the case that found the gap
+  (PV-07, 8 Sep 2026); runs as part of `npm test`.
 - `lib/slides.js` — one function per body component, ported from `04-slides`.
 - `lib/history.js` — alternation, 14/3/2/1 mix, cutout and position rotation,
   mode rotation, 90-day hash window.

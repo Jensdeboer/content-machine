@@ -1,0 +1,79 @@
+{
+  "series": "MINDSET",
+  "cover": {
+    "subject": "full-figure",
+    "mode": "sentence",
+    "headline": "Motivation is not a plan",
+    "align": "left",
+    "figure": {
+      "cutout": "fig-stretch-seated",
+      "x": 164,
+      "y": 461,
+      "scale": 0.8,
+      "mirror": false
+    },
+    "stopTest": {
+      "score": 4,
+      "notes": [
+        "Flat statement, no hedging, reads in one beat at thumbnail size",
+        "Low-energy figure facing out of frame carries the bad-day mood without shaming",
+        "No signal element, so the type does all the work"
+      ]
+    },
+    "ground": "white",
+    "layout": {
+      "headlineTop": 180
+    }
+  },
+  "slides": [
+    {
+      "type": "explainer",
+      "label": "01 · MOTIVATION IS WEATHER",
+      "headline": "Some days it shows up. Most days it does not.",
+      "body": "You cannot schedule a feeling.\n[[You can schedule a run.]]\nPut it in the day like brushing your teeth, and let the mood turn up late."
+    },
+    {
+      "type": "pull-statement",
+      "label": "02 · THE REAL QUESTION",
+      "headline": "Discipline is not wanting it more. It is [[needing to decide less]].",
+      "aside": "Decide once. Then repeat."
+    },
+    {
+      "type": "numeral-point",
+      "numeral": "03",
+      "headline": "Set defaults, not intentions.",
+      "body": "An intention is a wish with a time on it. A default is what happens unless you stop it."
+    },
+    {
+      "type": "compare",
+      "label": "04 · TWO WAYS TO PLAN A WEEK",
+      "headline": "One asks how you feel. One does not.",
+      "left": {
+        "label": "MOTIVATION",
+        "headline": "Run when you feel like it",
+        "body": "Good weeks are great. Bad weeks vanish, and the streak goes with them."
+      },
+      "right": {
+        "label": "SYSTEM",
+        "headline": "Same days, same time, kit ready",
+        "body": "Bad weeks get smaller runs. They still happen, so the base holds."
+      }
+    },
+    {
+      "type": "checklist",
+      "label": "05 · THIS WEEK",
+      "headline": "Remove one decision.",
+      "items": [
+        "Pick your run days now and write them where you will see them.",
+        "Lay your kit out the night before, shoes by the door.",
+        "Set a start time you can keep on your worst day, not your best.",
+        "On flat days, run the short version. [[It still counts.]]"
+      ]
+    },
+    {
+      "type": "cta"
+    }
+  ],
+  "deckId": "PV-908",
+  "topic": "systems-over-motivation"
+}

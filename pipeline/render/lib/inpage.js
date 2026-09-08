@@ -139,6 +139,22 @@ window.__pv = (() => {
     return { top: scan(top), right: scan(right), bottom: scan(bottom), left: scan(left) };
   }
 
+  // Where each headline line is: the union of the text's client rects, in
+  // canvas space, plus the element's own top. lib/lines.js is the only caller.
+  function headlineLines() {
+    const base = canvasEl().getBoundingClientRect();
+    return [...canvasEl().querySelectorAll('[data-role="headline-line"]')].map((el) => {
+      const node = el.firstChild;
+      const range = document.createRange(); range.selectNodeContents(el);
+      const rects = [...range.getClientRects()];
+      const x1 = Math.min(...rects.map((r) => r.left)), y1 = Math.min(...rects.map((r) => r.top));
+      const x2 = Math.max(...rects.map((r) => r.right)), y2 = Math.max(...rects.map((r) => r.bottom));
+      const er = el.getBoundingClientRect();
+      return { index: +el.dataset.line, text: node ? node.textContent : el.textContent, top: er.top - base.top,
+        rect: { x: x1 - base.left, y: y1 - base.top, w: x2 - x1, h: y2 - y1 } };
+    }).sort((a, b) => a.index - b.index);
+  }
+
   // Everything QA needs from the DOM in one pass.
   function audit() {
     const base = canvasEl().getBoundingClientRect();
@@ -204,6 +220,6 @@ window.__pv = (() => {
     return hex;
   }
 
-  return { measure, glyphs, occlusion, edgeAlpha, audit, phash };
+  return { measure, glyphs, occlusion, edgeAlpha, audit, phash, headlineLines };
 })();
 `;

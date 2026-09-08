@@ -11,6 +11,7 @@ const cutoutsLib = require('./lib/cutouts');
 const history = require('./lib/history');
 const browser = require('./lib/browser');
 const RULES = require('./lib/rules');
+const linesLib = require('./lib/lines');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -134,13 +135,13 @@ async function review(outDir, opts = {}) {
         const fig = deck.cover.figure;
         const img = a.images.find((x) => x.cutout === fig.id);
         if (img) {
+          // The same measure and the same rule the composer's search ran
+          // (lib/lines.js), taken again from the final DOM.
           const c = cutouts.byId.get(fig.id);
           const zones = cutoutsLib.zoneRects(c, { x: img.rect.x, y: img.rect.y, scale: img.rect.w / c.width, mirror: fig.mirror });
-          for (const t of a.texts.filter((x) => x.role === 'headline-line')) {
-            const line = deck.cover.lines[t.line];
-            if (!line || line.front) continue;
-            for (const r of t.rects) for (const z of zones) if (z.kind === 'dense' && cutoutsLib.intersects(r, z.rect)) flag(1, 'headline-in-dense-zone', `line "${t.text}" crosses dense zone ${z.name}`);
-          }
+          const measured = await linesLib.measureHeadlineLines(page);
+          const laid = measured.map((m) => ({ ...m, front: !!(deck.cover.lines[m.index] && deck.cover.lines[m.index].front) }));
+          for (const p of linesLib.denseZoneProblems(laid, zones)) flag(1, p.rule, p.detail);
         }
       }
     }

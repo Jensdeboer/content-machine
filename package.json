@@ -7,8 +7,9 @@
     "render": "node pipeline/render/index.js",
     "qa": "node pipeline/render/qa.js",
     "capacity": "node pipeline/render/capacity.js",
-    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json --out out/test",
-    "test:qa": "node pipeline/render/qa.js out/test/PV-01"
+    "test": "node pipeline/render/index.js pipeline/render/examples/PV-01.json --out out/test && node pipeline/render/test/pv07-dense-zone.js",
+    "test:qa": "node pipeline/render/qa.js out/test/PV-01",
+    "test:regress": "node pipeline/render/test/pv07-dense-zone.js"
   },
   "repository": {
     "type": "git",

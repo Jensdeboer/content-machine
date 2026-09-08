@@ -4,6 +4,7 @@
 const { metrics, esc, px, v, color, size, space, st, type, coverKicker, coverMark, groundRoles } = require('./html');
 const cut = require('./cutouts');
 const RULES = require('./rules');
+const lines = require('./lines');
 
 const MODE = {
   shout: { weight: 'bold', tracking: 'shout', leading: metrics.leading.shout, start: 'hero', transform: 'uppercase' },
@@ -69,6 +70,9 @@ async function greedyBreak(page, text, style, measure) {
 }
 
 // ------------------------------------------------------------- geometry ---
+// Where a line's element is PLACED (its CSS top and the measure's x/width),
+// for building the HTML and the signal block. Not where its text IS: that is
+// measured in the page by lib/lines.js, and every rule reads that instead.
 function lineRect(tokens, fit, align, top, i) {
   const w = fit.widths[i];
   const x = align === 'right' ? tokens.canvas.width - tokens.margin - w
@@ -143,28 +147,32 @@ function figureCandidates(tokens, cutout, fixed, sliced, align, subject) {
   return out;
 }
 
-// Rect-based checks of one headline layout against the placed figure.
-function zoneChecks(tokens, fit, align, top, zBehind, cutout, place, chromeRects) {
+// Rect-based checks of one headline layout against the placed figure, on the
+// measured line rects (lib/lines.js): the same rects qa.js re-measures after
+// the render, so what passes here passes there. Every line is zone-tested;
+// overlap with the figure box is measured, never used as a reason to skip.
+function zoneChecks(fit, top, zBehind, cutout, place, chromeRects, measured) {
   const zones = cut.zoneRects(cutout, place);
   const box = cut.figureBox(cutout, place);
   const problems = [];
   let behindOverlap = 0, typeSpaceShare = 1;
-  fit.lines.forEach((text, i) => {
-    const r = lineRect(tokens, fit, align, top, i);
-    for (const cr of chromeRects) if (cut.intersects(r, cr.rect)) problems.push(`line ${i} collides with the ${cr.role}`);
-    if (!zBehind[i]) return;
-    const ov = cut.intersection(r, box);
-    if (!ov) return;
+  const laid = fit.lines.map((text, i) => ({ index: i, text, rect: lines.lineRectAt(measured[i], top + i * fit.lineH), front: !zBehind[i] }));
+  for (const l of laid) {
+    for (const cr of chromeRects) if (cut.intersects(l.rect, cr.rect)) problems.push(`line ${l.index} collides with the ${cr.role}`);
+  }
+  for (const p of lines.denseZoneProblems(laid, zones)) problems.push(`line ${p.line} ("${p.text}") crosses dense zone ${p.zone}`);
+  for (const l of laid) {
+    if (l.front) continue;
+    const ov = cut.intersection(l.rect, box);
+    if (!ov) continue;
     behindOverlap += cut.area(ov);
     let ts = 0;
     for (const z of zones) {
-      const zi = cut.intersection(r, z.rect);
-      if (!zi) continue;
-      if (z.kind === 'dense') problems.push(`line ${i} ("${text}") sits in dense zone ${z.name}`);
-      if (z.kind === 'type-space') ts += cut.area(zi);
+      const zi = cut.intersection(l.rect, z.rect);
+      if (zi && z.kind === 'type-space') ts += cut.area(zi);
     }
     typeSpaceShare = Math.min(typeSpaceShare, ts / cut.area(ov));
-  });
+  }
   for (const cr of chromeRects) {
     const ov = cut.intersection(cr.rect, box);
     if (!ov) continue;
@@ -351,6 +359,7 @@ async function composeCover(brief, ctx, page, buildPage) {
 
   let resolved = { mode: c.mode, subject: c.subject, ground, align, sizeStep: fit.step, sizePx: fit.stepPx, fitAttempts: fit.attempts, lines: [], figure: null, position: null, device: c.device || null };
   let layout = null;
+  let measured = null; // headline line rects from lib/lines.js; figure covers only
 
   if (!hasFigure) {
     // Type-led / conceptual: headline top from brief, device default, or centred in the safe area.
@@ -386,6 +395,10 @@ async function composeCover(brief, ctx, page, buildPage) {
         headlineHtml(tokens, fit, c.mode, align, 0, fit.lines.map(() => true), inkRole);
       await ctx.show(page, buildPage({ slideIndex: 1, slideType: 'cover', canvasInner: probeHtml, canvasStyle }));
       const edgeStats = await page.evaluate(() => window.__pv.edgeAlpha(document.querySelector('[data-role="figure"]')));
+      // The lines as the real font sets them, measured once at top 0 and
+      // shifted per candidate. The same measure qa.js takes after the render.
+      measured = await lines.measureHeadlineLines(page);
+      if (measured.length !== fit.lines.length) throw new Error(`measured ${measured.length} headline lines, expected ${fit.lines.length}`);
       const sliced = slicedEdges(cutout, edgeStats, fig.slicedEdges);
       const facing = horizontalFacing(cutout);
       const placements = figureCandidates(tokens, cutout, fig, sliced.edges, align, c.subject);
@@ -407,7 +420,7 @@ async function composeCover(brief, ctx, page, buildPage) {
           const zBehind = fit.lines.map((_, i) => (explicitFront ? !c.layout.front.includes(i) : true));
           let forced = 0, zc = null;
           for (let round = 0; round <= fit.lines.length; round++) {
-            zc = zoneChecks(tokens, fit, align, top, zBehind, cutout, place, chromeRects);
+            zc = zoneChecks(fit, top, zBehind, cutout, place, chromeRects, measured);
             if (zc.ok) break;
             const failing = new Set(zc.problems.map((m) => +(m.match(/^line (\d+)/) || [])[1]).filter((n) => !Number.isNaN(n)));
             const movable = [...failing].filter((i) => zBehind[i]);
@@ -422,7 +435,7 @@ async function composeCover(brief, ctx, page, buildPage) {
       pool.sort((x, y) => x.forced - y.forced || y.place.scale - x.place.scale || y.typeSpaceShare - x.typeSpaceShare || x.rank - y.rank);
 
       const runPixels = async (cand2, zBehind) => {
-        const overlaps = fit.lines.some((_, i) => zBehind[i] && cut.intersection(lineRect(tokens, fit, align, cand2.top, i), cand2.box));
+        const overlaps = fit.lines.some((_, i) => zBehind[i] && cut.intersection(lines.lineRectAt(measured[i], cand2.top + i * fit.lineH), cand2.box));
         if (!overlaps) return { occ: { lines: [] }, problems: [] };
         pixelBudget--;
         await page.evaluate(({ place: pl, lines }) => {
@@ -505,7 +518,11 @@ async function composeCover(brief, ctx, page, buildPage) {
   parts.push(deviceHtml(tokens, brief, fit, top, inkRole, ground));
   if (aside) parts.push(asideHtml(tokens, aside.text, Math.round(top + fit.blockH + metrics.cover.asideGap), inkRole, align));
   if (payoff) parts.push(payoffHtml(tokens, payoff.text, Math.round(tokens.safe.y + tokens.safe.height - metrics.cover.typeLed.payoffBottomInset - payoff.h), inkRole, payoff.step));
-  resolved.lines = fit.lines.map((text, i) => ({ text, top: Math.round(top + i * fit.lineH), width: Math.round(fit.widths[i]), front: !layout.zBehind[i] }));
+  resolved.lines = fit.lines.map((text, i) => ({
+    text, top: Math.round(top + i * fit.lineH), width: Math.round(fit.widths[i]), front: !layout.zBehind[i],
+    // The measured rect the zone rule ran on (lib/lines.js); null on covers without a figure, where it is not measured.
+    rect: measured ? lines.lineRectAt(measured[i], top + i * fit.lineH) : null,
+  }));
   resolved.headlineTop = top;
   if (aside) resolved.aside = { text: aside.text, top: Math.round(top + fit.blockH + metrics.cover.asideGap) };
   if (payoff) resolved.payoff = { text: payoff.text, step: payoff.step };
