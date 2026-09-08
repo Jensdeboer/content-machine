@@ -132,6 +132,8 @@ function loadConfig(root, brand) {
     feedRetryPauseMs: cfg.number('Run settings', 'Feed retry pause (seconds)') * 1000,
     feedUserAgent: cfg.value('Run settings', 'Feed user agent'),
     maxItemsPerScanCall: cfg.number('Run settings', 'Max items per scan call'),
+    queueTarget: cfg.number('Run settings', 'queue_target'),
+    deckMaxAgeDays: cfg.number('Run settings', 'deck_max_age'),
     stateDb: cfg.value('Run settings', 'State database'),
     outDir: cfg.value('Run settings', 'Output directory'),
   };

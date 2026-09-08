@@ -16,13 +16,19 @@
 // by scanning pipeline/ for the method name in code, and refuses to run if
 // another file carries it. lib/telegram.js only ever sends.
 //
+// This is the approval gate. The nightly writes every deck as pending and
+// stops; nothing posts until "ok" is sent here, and packet.js consumes the
+// approved queue and nothing else.
+//
 // Commands, case-insensitive, one per message, only from TELEGRAM_CHAT:
-//   ok PV-07             the deck stays pending; approval logged on the row
+//   ok PV-07             pending -> approved; the next packet may post it
 //   no PV-07 <reason>    deck rejected; a topic-scoped row goes to rejected.md
-//   skip PV-07           the packet steps over it today; still pending tomorrow
+//   skip PV-07           approved -> pending; decide again another day
 //   stop                 publishing_enabled: no in config.md
 //   go                   publishing_enabled: yes
-//   status               pending/blocked counts and the next deck in the queue
+//   status               publishing, the counts, and what posts next
+//   queue                the whole backlog, in the order the packet reaches it
+//   show PV-07           any deck's slides as documents; reading only
 // Anything else gets one polite reply listing these. Every action is
 // confirmed with a reply naming the deck. A message from any other chat id is
 // recorded, ignored and never answered.
@@ -33,7 +39,7 @@ const https = require('https');
 const { loadConfig } = require('./lib/config');
 const { State } = require('./lib/db');
 const { Telegram } = require('./lib/telegram');
-const { publishGate } = require('./packet');
+const { publishGate, deckDir, readSlides } = require('./packet');
 
 const ROOT = path.resolve(__dirname, '..');
 const log = (...a) => console.log(...a);
@@ -99,19 +105,21 @@ function getUpdates(token, offset) {
 // --------------------------------------------------------------------------
 const HELP = [
   'I understand these, one per message:',
-  '  ok PV-07             keep it in the queue',
+  '  ok PV-07             approve it; the next packet may post it',
   '  no PV-07 <reason>    reject it; the reason goes to rejected.md',
-  '  skip PV-07           step over it today only',
+  '  skip PV-07           back to pending, decide again another day',
   '  stop                 publishing off',
   '  go                   publishing on',
-  '  status               the queue',
+  '  status               publishing, the counts, and what posts next',
+  '  queue                everything still waiting, oldest first',
+  '  show PV-07           the deck\'s slides, to look before deciding',
 ].join('\n');
 
 function parse(text) {
   const t = String(text || '').trim();
-  let m = t.match(/^(ok|no|skip)\s+([a-z]{1,4}-\d{1,4})\b\s*(.*)$/is);
+  let m = t.match(/^(ok|no|skip|show)\s+([a-z]{1,4}-\d{1,4})\b\s*(.*)$/is);
   if (m) return { action: m[1].toLowerCase(), deckKey: m[2].toUpperCase(), reason: m[3].trim() };
-  m = t.match(/^(stop|go|status)\s*$/i);
+  m = t.match(/^(stop|go|status|queue)\s*$/i);
   if (m) return { action: m[1].toLowerCase() };
   return { action: 'help' };
 }
@@ -132,6 +140,17 @@ function rejectedRow({ date, slug, idea, reason }) {
   return `| ${date} | ${cell(slug)} | ${cell(idea)} | ${cell(reason)} | topic |\n`;
 }
 
+// Is this slug already excluded on this date? The row goes in before the deck
+// row is flipped, so an action replayed after a crash would otherwise append a
+// second identical row. The pair (date, slug) is what identifies it.
+function hasRejectedRow(file, date, slug) {
+  if (!fs.existsSync(file)) return false;
+  return fs.readFileSync(file, 'utf8').split('\n').some((line) => {
+    const cells = line.split('|').map((c) => c.trim());
+    return cells.length >= 6 && cells[1] === date && cells[2] === String(slug || '');
+  });
+}
+
 // --------------------------------------------------------------------------
 // Acting. Pure over its inputs so the fixture test can drive it: returns the
 // replies and the writes it made (or would have made, on a dry run).
@@ -140,12 +159,18 @@ function headlineOf(deck) {
   try { const b = JSON.parse(deck.brief_json || 'null'); return b && b.cover && b.cover.headline ? b.cover.headline : null; } catch (e) { return null; }
 }
 
-function nextInQueue(cfg, state, brand, date) {
-  for (const d of state.pendingDecks(brand)) {
-    if (d.skipped_on === date) continue;
-    if (publishGate(cfg, d).ok) return d;
-  }
+// The deck packet.js would pick right now: the oldest approved one that
+// passes the publish gate, chosen exactly as the packet chooses it.
+function nextInQueue(cfg, state, brand) {
+  for (const d of state.approvedDecks(brand)) if (publishGate(cfg, d).ok) return d;
   return null;
+}
+
+// Whole days between the deck's creation and today, by calendar date.
+function ageDays(createdAt, date) {
+  if (!createdAt) return null;
+  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${String(createdAt).slice(0, 10)}T00:00:00Z`)) / 86400000);
+  return Number.isFinite(days) ? Math.max(0, days) : null;
 }
 
 function handle({ cfg, state, brand, cmd, date, dryRun, files }) {
@@ -154,14 +179,26 @@ function handle({ cfg, state, brand, cmd, date, dryRun, files }) {
 
   if (cmd.action === 'status') {
     const counts = state.deckCounts(brand);
-    const next = nextInQueue(cfg, state, brand, date);
+    const next = nextInQueue(cfg, state, brand);
     const pub = cfg.publishing.enabled ? 'on' : 'off';
     const lines = [
       `${brand}: publishing ${pub}`,
-      `pending ${counts.pending || 0} · packet_sent ${counts.packet_sent || 0} · blocked ${counts.blocked || 0} · needs_attention ${counts.needs_attention || 0} · rejected ${counts.rejected || 0} · published ${counts.published || 0}`,
-      next ? `next in the queue: ${next.deck_key} · ${next.series || ''} · ${headlineOf(next) || next.topic || ''}`.replace(/ · $/, '') : 'next in the queue: nothing passes the gate today',
+      `pending ${counts.pending || 0} · approved ${counts.approved || 0} · blocked ${counts.blocked || 0}`,
+      next ? `next to post: ${next.deck_key} · ${headlineOf(next) || next.topic || 'no headline'}` : 'next to post: none approved',
     ];
     return { reply: lines.join('\n'), writes: [] };
+  }
+
+  // The whole backlog, in the order the packet reaches it: approved decks are
+  // what it takes, pending ones are what a single "ok" would add.
+  if (cmd.action === 'queue') {
+    const rows = state.queueDecks(brand);
+    if (!rows.length) return { reply: 'Queue is empty.', writes: [] };
+    const lines = rows.map((d) => {
+      const age = ageDays(d.created_at, date);
+      return [d.deck_key, d.topic || 'no topic', d.status, age === null ? 'age unknown' : `${age}d`].join(' · ');
+    });
+    return { reply: [`${brand}: ${rows.length} deck(s) waiting, oldest first`, ...lines].join('\n'), writes: [] };
   }
 
   if (cmd.action === 'stop' || cmd.action === 'go') {
@@ -169,35 +206,72 @@ function handle({ cfg, state, brand, cmd, date, dryRun, files }) {
     const { changed, text } = setPublishing(files.config, on);
     w(() => fs.writeFileSync(files.config, text));
     return {
-      reply: `publishing_enabled: ${on ? 'yes' : 'no'}${changed ? '' : ' (it already was)'}. ${on ? 'The 14:00 packet runs.' : 'No packets and no pushes until "go".'}`,
+      reply: on ? 'Publishing resumed.' : "Publishing paused. No packet will post until you send 'go'.",
       writes: changed ? [`config.md publishing_enabled -> ${on ? 'yes' : 'no'}`] : [],
     };
   }
 
-  // ok / no / skip: the deck must exist and, for ok and skip, be pending.
+  // ok / no / skip / show. show works on any deck whatever its status; the
+  // three that mutate check the status they need first.
   const deck = state.deckByKey(cmd.deckKey);
-  if (!deck || deck.brand !== brand) return { reply: `${cmd.deckKey}: no such deck. "status" lists the queue.`, writes: [] };
+  if (!deck || deck.brand !== brand) return { reply: `No such deck: ${cmd.deckKey}`, writes: [] };
   const name = `${deck.deck_key} (${deck.topic || 'no topic'})`;
 
+  if (cmd.action === 'show') {
+    // Reading only: the rendered slides as documents, the same files the
+    // packet sends, so what is inspected is what would post.
+    let slides;
+    try { slides = readSlides(deckDir(cfg, deck)); } catch (e) { return { reply: `${name} is ${deck.status} and has no rendered slides to show (${e.message}).`, writes: [] }; }
+    const head = [deck.deck_key, deck.series, headlineOf(deck)].filter(Boolean).join(' · ');
+    return { reply: `${head}\n${deck.status} · ${slides.length} slides follow`, documents: slides, writes: [] };
+  }
+
   if (cmd.action === 'ok') {
+    // Approving what is already approved is the same state again: a message
+    // delivered twice must be a no-op, not an error.
+    if (deck.status === 'approved') return { reply: `${deck.deck_key} is already approved — it posts at the next packet run.`, writes: [] };
+    // A blocked deck failed verification or qa. Approving it would put a deck
+    // that did not trace in front of the packet, so it is refused with the
+    // reason rather than silently let through.
+    if (deck.status === 'blocked') {
+      return { reply: `${name} is blocked and will not be approved: ${deck.reason || 'it failed verification or qa'}. Fix the deck or reject it with "no ${deck.deck_key} <reason>".`, writes: [] };
+    }
     if (deck.status !== 'pending') return { reply: `${name} is ${deck.status}, not pending; nothing to approve.`, writes: [] };
     w(() => state.approveDeck(deck.deck_key));
-    return { reply: `ok: ${name} stays in the queue${deck.skipped_on === date ? ' (it is still skipped for today)' : ''}.`, writes: [`${deck.deck_key} approved_at`] };
+    return {
+      reply: `Approved ${deck.deck_key} (${headlineOf(deck) || deck.topic || 'no headline'}) — will post at the next packet run.`,
+      writes: [`${deck.deck_key} status approved`],
+    };
   }
   if (cmd.action === 'skip') {
-    if (deck.status !== 'pending') return { reply: `${name} is ${deck.status}, not pending; nothing to skip.`, writes: [] };
+    if (deck.status !== 'pending' && deck.status !== 'approved') return { reply: `${name} is ${deck.status}, not pending or approved; nothing to skip.`, writes: [] };
+    const was = deck.status;
     w(() => state.skipDeck(deck.deck_key, date));
-    return { reply: `skip: ${name} steps out of today's packet and is back in the queue tomorrow.`, writes: [`${deck.deck_key} skipped_on ${date}`] };
+    return {
+      reply: `Skipped ${name} — ${was === 'approved' ? 'the approval is withdrawn and it is pending again' : 'it stays pending'}. Nothing goes to rejected.md; approve it any other day.`,
+      writes: [`${deck.deck_key} status pending`],
+    };
   }
   if (cmd.action === 'no') {
+    // The reason is the whole point: it is what rejected.md carries forward
+    // and what stops the picker proposing the topic again. Without one,
+    // nothing happens.
+    if (!cmd.reason) return { reply: `${name}: a rejection needs a reason — it is what keeps the topic from coming back. Send "no ${deck.deck_key} <reason>".`, writes: [] };
     if (deck.status === 'rejected') return { reply: `${name} is already rejected.`, writes: [] };
     if (deck.status === 'published' || deck.status === 'packet_sent') return { reply: `${name} is ${deck.status}; a rejection here would not recall it. Nothing changed.`, writes: [] };
-    const reason = cmd.reason || 'rejected from Telegram, no reason given';
-    const row = rejectedRow({ date, slug: deck.topic, idea: headlineOf(deck), reason });
-    w(() => { state.rejectDeck(deck.deck_key, reason); fs.appendFileSync(files.rejected, row); });
+    // rejected.md first, then the deck row. rejected.md is the brain and lives
+    // in git; state.db is rebuildable from it and the output folders. A row
+    // with no status flip is visible and harmless; a flip with no row loses
+    // the memory for good. The row is skipped when the same date and slug are
+    // already there, so acting on the same message twice cannot double it.
+    const row = rejectedRow({ date, slug: deck.topic, idea: headlineOf(deck), reason: cmd.reason });
+    w(() => {
+      if (!hasRejectedRow(files.rejected, date, deck.topic)) fs.appendFileSync(files.rejected, row);
+      state.rejectDeck(deck.deck_key, cmd.reason);
+    });
     return {
-      reply: `no: ${name} rejected. rejected.md gets "${deck.topic}" (scope topic): ${reason}`,
-      writes: [`${deck.deck_key} status rejected`, `rejected.md += ${row.trim()}`],
+      reply: `Rejected ${deck.deck_key} (${deck.topic || 'no topic'}). rejected.md now excludes the topic "${deck.topic}" permanently (scope topic): ${cmd.reason}`,
+      writes: [`rejected.md += ${row.trim()}`, `${deck.deck_key} status rejected`],
     };
   }
   return { reply: HELP, writes: [] };
@@ -205,7 +279,7 @@ function handle({ cfg, state, brand, cmd, date, dryRun, files }) {
 
 // One pass over a batch of updates. Records each before acting; skips any
 // already recorded; only chatId is honoured. Returns what happened per update.
-async function processUpdates({ updates, cfg, state, brand, chatId, date, dryRun, files, reply }) {
+async function processUpdates({ updates, cfg, state, brand, chatId, date, dryRun, files, reply, replyDocument = async () => {} }) {
   const results = [];
   let maxId = null;
   for (const u of updates) {
@@ -228,8 +302,9 @@ async function processUpdates({ updates, cfg, state, brand, chatId, date, dryRun
     const r = handle({ cfg, state, brand, cmd, date, dryRun, files });
     log(`inbox: ${JSON.stringify(msg.text)} -> ${cmd.action}${cmd.deckKey ? ' ' + cmd.deckKey : ''}${r.writes.length ? ' | ' + r.writes.join('; ') : ''}`);
     await reply(r.reply);
-    if (!dryRun) state.updateInboxMessage(id, { reply: r.reply });
-    results.push({ updateId: id, action: cmd.action, deckKey: cmd.deckKey, reply: r.reply, writes: r.writes, text: msg.text });
+    for (const f of r.documents || []) await replyDocument(f);
+    if (!dryRun) state.updateInboxMessage(id, { reply: r.documents ? `${r.reply}\n[${r.documents.length} documents]` : r.reply });
+    results.push({ updateId: id, action: cmd.action, deckKey: cmd.deckKey, reply: r.reply, documents: r.documents || [], writes: r.writes, text: msg.text });
   }
   return { results, nextOffset: maxId === null ? null : maxId + 1 };
 }
@@ -275,7 +350,13 @@ async function main() {
       if (!r.ok && !r.offline) throw new Error(`reply failed: ${r.reason}`);
       return r;
     };
-    const { nextOffset } = await processUpdates({ updates, cfg, state, brand, chatId: ourChat, date: today(), dryRun, files, reply });
+    const replyDocument = async (file) => {
+      if (dryRun || fixture) { log(`[${dryRun ? 'dry-run' : 'fixture'}] reply document: ${path.relative(ROOT, file)} (${fs.statSync(file).size} bytes)`); return { ok: true }; }
+      const r = await tg.sendDocument(file);
+      if (!r.ok && !r.offline) throw new Error(`reply document ${path.basename(file)} failed: ${r.reason}`);
+      return r;
+    };
+    const { nextOffset } = await processUpdates({ updates, cfg, state, brand, chatId: ourChat, date: today(), dryRun, files, reply, replyDocument });
     if (nextOffset !== null && !fixture && !dryRun) { state.setInboxOffset(nextOffset); log(`inbox: offset -> ${nextOffset}`); }
     return finish(0);
   } catch (e) {
@@ -286,4 +367,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { parse, handle, processUpdates, setPublishing, rejectedRow, otherReadersOf, assertOnlyReader, HELP };
+module.exports = { parse, handle, processUpdates, setPublishing, rejectedRow, hasRejectedRow, ageDays, otherReadersOf, assertOnlyReader, HELP };

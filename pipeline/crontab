@@ -30,7 +30,9 @@ MAILTO=""
 0 3 * * * /home/jens/content-machine/pipeline/cron.sh deadman node pipeline/deadman.js pacevector
 
 # Every 5 minutes — the Telegram inbox: "ok PV-07", "no PV-07 <reason>",
-# "skip PV-07", "stop", "go", "status". The only reader of the bot's updates.
+# "skip PV-07", "stop", "go", "status", "queue", "show PV-07". The only reader
+# of the bot's updates, and the approval gate: the 14:00 packet posts the
+# oldest deck this job marked approved, and nothing at all if there is none.
 # Its own lock: a five-minute tick must never be skipped (and alerted) because
 # the nightly or the packet holds the shared one, and it never overlaps them
 # in any way that matters (SQLite WAL; the brain files it edits are read once

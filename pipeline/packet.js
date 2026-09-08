@@ -22,6 +22,11 @@
 // exit. 0 for a packet sent and 0 for a deliberate no-op (kill switch off,
 // nothing approved); non-zero for anything else, always with a Telegram message
 // naming the deck.
+//
+// Only an APPROVED deck is posted. The nightly writes decks as pending and
+// stops there; "ok PV-07" in the Telegram inbox (pipeline/inbox.js) is what
+// makes one eligible. A day with nothing approved is a day off, not a
+// failure: nothing is pushed, one message says so, and the exit is 0.
 const fs = require('fs');
 const path = require('path');
 
@@ -232,32 +237,27 @@ async function main() {
       return finish(0);
     }
 
-    // 2. The oldest deck that passed qa, has not been sent, and passes the
-    //    publish gate. One that fails the gate is stepped over rather than
-    //    waited on: the next deck in the queue may be clean. Every skip is
-    //    named in the message, because a deck silently held back is a deck
-    //    nobody fixes.
-    const queue = state.pendingDecks(brand);
-    const todayIso = new Date().toISOString().slice(0, 10);
+    // 2. The oldest APPROVED deck that has not been sent and passes the
+    //    publish gate. Pending is not eligible: a deck nobody said "ok" to is
+    //    a deck nobody looked at. One that fails the gate is stepped over
+    //    rather than waited on: the next approved deck may be clean. Every
+    //    skip is named in the message, because a deck silently held back is a
+    //    deck nobody fixes.
+    const queue = state.approvedDecks(brand);
     for (const candidate of queue) {
-      // "skip PV-07" from the Telegram inbox: out of today's packet, back in
-      // the queue tomorrow. Rejected decks are not pending and never appear.
-      if (candidate.skipped_on === todayIso) {
-        skipped.push(`${candidate.deck_key}${candidate.topic ? ` (${candidate.topic})` : ''} — skipped for today from Telegram`);
-        log(`skipping ${candidate.deck_key}: skipped for today from Telegram`);
-        continue;
-      }
       const gate = publishGate(cfg, candidate);
       if (gate.ok) { deck = candidate; break; }
       skipped.push(`${candidate.deck_key}${candidate.topic ? ` (${candidate.topic})` : ''} — ${gate.why}`);
       log(`skipping ${candidate.deck_key}: ${gate.why}`);
     }
+    // Nothing approved is the ordinary quiet day, not a failure: one message,
+    // and the exit stays 0 so cron.sh raises no alert.
     if (!deck) {
       await mustSend(tg, 'empty queue notice', () => tg.send([
-        `${brand}: no approved deck for today.`,
-        ...(skipped.length ? ['', `${skipped.length} deck(s) skipped:`, ...skipped] : []),
+        "No approved deck ready — nothing posted today. Reply 'queue' to see what's pending.",
+        ...(skipped.length ? ['', `${skipped.length} approved deck(s) stepped over:`, ...skipped] : []),
       ].join('\n')));
-      log(`no packetable deck (${queue.length} pending, ${skipped.length} skipped).`);
+      log(`no packetable deck (${queue.length} approved, ${skipped.length} stepped over).`);
       return finish(0);
     }
 
@@ -340,7 +340,7 @@ async function main() {
     await tg.send([
       `${brand}: packet FAILED — ${named}`,
       `${e.name || 'error'}: ${e.message}`,
-      deck ? 'The deck is still pending; nothing was marked packet_sent. Re-running is safe: a draft the provider already accepted is never pushed twice.' : '',
+      deck ? 'The deck is still approved; nothing was marked packet_sent. Re-running is safe: a draft the provider already accepted is never pushed twice.' : '',
     ].filter(Boolean).join('\n'));
     console.error(e.stack || e);
     return finish(1);
@@ -349,4 +349,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { suggestSound, soundLine, recordSoundInDeckJson, publishGate, draftTitle, coverHeadline };
+module.exports = { suggestSound, soundLine, recordSoundInDeckJson, publishGate, draftTitle, coverHeadline, deckDir, readSlides };

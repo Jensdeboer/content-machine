@@ -219,5 +219,19 @@
     "kickerPadX": 24,
     "kickerGap": 32,
     "$kickerGap-note": "Not stated as a pixel value anywhere in HANDOFF.md or the grammar (only the formula: headline-top - chip-height - gap, else headline-bottom + gap). Set equal to asideGap: same role, breathing room between the headline block and an adjacent line."
+  },
+  "caption": {
+    "$note": "Geometry for the caption treatments in brands/<brand>/design/04-slides/caption-treatments.json. Style roles live in that manifest; only pixel numbers live here, like every other key in this file.",
+    "bandPadY": 20,
+    "bandPadX": 28,
+    "chipPadY": 4,
+    "chipPadX": 16,
+    "tintPad": 56,
+    "ruleGap": 32,
+    "sideLabelColumn": 240,
+    "sideLabelGap": 48,
+    "emphasisUnderlineOffset": 6,
+    "emphasisUnderlineWeight": 6,
+    "edgeAnchorInset": 44
   }
 }

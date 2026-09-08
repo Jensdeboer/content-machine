@@ -1,6 +1,6 @@
 {
-  "$note": "Measured, not estimated. pipeline/render/capacity.js lays each template out in Chromium in the real fonts at the real sizes and grows every field of a component together until the slide fails qa.js's text-overflow rule. \"budget\" is what the write stage is told and the number to write to; \"fits\" is the length that was still fitting when growth stopped; \"reference\" is the length of the real copy it grew from; \"lines\" is how many lines the budget occupies. The budgets hold together: one slide carrying all of them at once was rendered and fits. Stale as soon as a token, template or font changes; run the script again.",
-  "$measured": "2026-09-07",
+  "$note": "Measured, not estimated. pipeline/render/capacity.js lays each template out in Chromium in the real fonts at the real sizes and grows every field of a component together until the slide fails qa.js's text-overflow rule. \"budget\" is what the write stage is told and the number to write to; \"fits\" is the length that was still fitting when growth stopped; \"reference\" is the length of the real copy it grew from; \"lines\" is how many lines the budget occupies; \"tightest\" names the caption treatment that produced the smallest budget, which is the one written out. The budgets hold together: one slide carrying all of them at once was rendered and fits. Stale as soon as a token, template or font changes; run the script again.",
+  "$measured": "2026-09-08",
   "$brand": "brands/pacevector",
   "$rules": {
     "margin": 0.9,
@@ -15,27 +15,31 @@
           "fits": 112,
           "reference": 56,
           "lines": 5,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "value": {
           "budget": 4,
           "fits": 5,
           "reference": 2,
-          "lines": 1
+          "lines": 1,
+          "tightest": "quiet-left"
         },
         "unit": {
           "budget": 49,
           "fits": 52,
           "reference": 26,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
           "budget": 38,
           "fits": 40,
           "reference": 20,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
@@ -47,28 +51,32 @@
           "fits": 82,
           "reference": 41,
           "lines": 4,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "value": {
           "budget": 13,
           "fits": 14,
           "reference": 6,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "unit": {
           "budget": 43,
           "fits": 46,
           "reference": 23,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
           "budget": 45,
           "fits": 48,
           "reference": 24,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
@@ -79,39 +87,42 @@
           "fits": 70,
           "reference": 35,
           "lines": 4,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "body": {
           "budget": 212,
           "fits": 224,
           "reference": 112,
           "lines": 5,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
           "budget": 39,
           "fits": 42,
           "reference": 21,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
     "numeral-point": {
       "fields": {
         "headline": {
-          "budget": 91,
-          "fits": 96,
+          "budget": 86,
+          "fits": 91,
           "reference": 48,
-          "lines": 5,
-          "capped": true
+          "lines": 6,
+          "tightest": "tint-block"
         },
         "body": {
-          "budget": 117,
-          "fits": 124,
+          "budget": 88,
+          "fits": 91,
           "reference": 62,
-          "lines": 3,
-          "capped": true
+          "lines": 2,
+          "tightest": "tint-block"
         }
       }
     },
@@ -123,14 +134,15 @@
           "fits": 70,
           "reference": 35,
           "lines": 3,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "items[].body": {
-          "budget": 76,
-          "fits": 80,
+          "budget": 70,
+          "fits": 74,
           "reference": 40,
           "lines": 2,
-          "capped": true
+          "tightest": "tint-block"
         }
       }
     },
@@ -141,21 +153,23 @@
           "fits": 70,
           "reference": 35,
           "lines": 4,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "items[]": {
-          "budget": 72,
-          "fits": 76,
+          "budget": 44,
+          "fits": 45,
           "reference": 38,
-          "lines": 2,
-          "capped": true
+          "lines": 1,
+          "tightest": "tint-block"
         },
         "label": {
           "budget": 51,
           "fits": 54,
           "reference": 27,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
@@ -167,105 +181,111 @@
           "fits": 50,
           "reference": 25,
           "lines": 3,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "rows[].label": {
-          "budget": 10,
-          "fits": 11,
+          "budget": 8,
+          "fits": 9,
           "reference": 3,
-          "lines": 3,
-          "capped": true
+          "lines": 2,
+          "tightest": "tint-block"
         },
         "rows[].text": {
           "budget": 58,
           "fits": 62,
           "reference": 31,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
     "pull-statement": {
       "fields": {
         "headline": {
-          "budget": 104,
-          "fits": 110,
+          "budget": 87,
+          "fits": 91,
           "reference": 55,
           "lines": 6,
-          "capped": true
+          "tightest": "tint-block"
         },
         "aside": {
           "budget": 28,
           "fits": 30,
           "reference": 15,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
           "budget": 26,
           "fits": 28,
           "reference": 14,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
     "compare": {
       "fields": {
         "headline": {
-          "budget": 66,
-          "fits": 70,
+          "budget": 57,
+          "fits": 60,
           "reference": 35,
           "lines": 4,
-          "capped": true
+          "tightest": "tint-block"
         },
         "left.headline": {
-          "budget": 51,
-          "fits": 54,
+          "budget": 28,
+          "fits": 29,
           "reference": 27,
-          "lines": 4,
-          "capped": true
+          "lines": 3,
+          "tightest": "tint-block"
         },
         "right.headline": {
-          "budget": 55,
-          "fits": 58,
+          "budget": 36,
+          "fits": 37,
           "reference": 29,
-          "lines": 4,
-          "capped": true
+          "lines": 3,
+          "tightest": "tint-block"
         },
         "left.body": {
-          "budget": 87,
-          "fits": 92,
+          "budget": 54,
+          "fits": 55,
           "reference": 46,
-          "lines": 4,
-          "capped": true
+          "lines": 2,
+          "tightest": "band-top"
         },
         "right.body": {
-          "budget": 95,
-          "fits": 100,
+          "budget": 57,
+          "fits": 58,
           "reference": 50,
-          "lines": 4,
-          "capped": true
+          "lines": 2,
+          "tightest": "band-top"
         },
         "left.label": {
-          "budget": 21,
-          "fits": 23,
+          "budget": 20,
+          "fits": 21,
           "reference": 12,
-          "lines": 1
+          "lines": 1,
+          "tightest": "tint-block"
         },
         "right.label": {
           "budget": 19,
           "fits": 20,
           "reference": 10,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
-          "budget": 43,
-          "fits": 46,
+          "budget": 39,
+          "fits": 41,
           "reference": 23,
           "lines": 1,
-          "capped": true
+          "tightest": "tint-block"
         }
       }
     },
@@ -276,66 +296,73 @@
           "fits": 64,
           "reference": 32,
           "lines": 4,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "body": {
           "budget": 95,
           "fits": 100,
           "reference": 50,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "ticks[].label": {
           "budget": 13,
           "fits": 14,
           "reference": 6,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "caption": {
           "budget": 60,
           "fits": 64,
           "reference": 32,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
-          "budget": 47,
-          "fits": 50,
+          "budget": 40,
+          "fits": 42,
           "reference": 25,
           "lines": 1,
-          "capped": true
+          "tightest": "tint-block"
         }
       }
     },
     "chart": {
       "fields": {
         "headline": {
-          "budget": 55,
-          "fits": 58,
+          "budget": 46,
+          "fits": 48,
           "reference": 36,
-          "lines": 3
+          "lines": 3,
+          "tightest": "tint-block"
         },
         "reference.label": {
           "budget": 15,
           "fits": 16,
           "reference": 8,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "xLabel": {
           "budget": 38,
           "fits": 40,
           "reference": 20,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "body": {
-          "budget": 85,
-          "fits": 90,
+          "budget": 46,
+          "fits": 47,
           "reference": 45,
-          "lines": 2,
-          "capped": true
+          "lines": 1,
+          "tightest": "tint-block"
         }
       }
     },
@@ -346,35 +373,40 @@
           "fits": 58,
           "reference": 29,
           "lines": 3,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "cells[].value": {
           "budget": 9,
           "fits": 10,
           "reference": 2,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "cells[].unit": {
           "budget": 8,
           "fits": 9,
           "reference": 1,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "cells[].label": {
           "budget": 11,
           "fits": 12,
           "reference": 4,
           "lines": 1,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "cells[].phrase": {
           "budget": 32,
           "fits": 34,
           "reference": 17,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
@@ -385,31 +417,35 @@
           "fits": 54,
           "reference": 27,
           "lines": 4,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "body": {
           "budget": 110,
           "fits": 116,
           "reference": 58,
           "lines": 4,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         },
         "label": {
           "budget": 38,
           "fits": 40,
           "reference": 20,
           "lines": 2,
-          "capped": true
+          "capped": true,
+          "tightest": "quiet-left"
         }
       }
     },
     "cta": {
       "fields": {
         "credit": {
-          "budget": 47,
-          "fits": 48,
+          "budget": 46,
+          "fits": 47,
           "reference": 43,
-          "lines": 1
+          "lines": 1,
+          "tightest": "quiet-left"
         }
       }
     }

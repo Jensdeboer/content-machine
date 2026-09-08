@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS decks (
   brief_id     INTEGER REFERENCES briefs(id),
   deck_key     TEXT NOT NULL UNIQUE,
   topic        TEXT,
-  status       TEXT NOT NULL,              -- pending | packet_sent | blocked | needs_attention | published
+  status       TEXT NOT NULL,              -- pending | approved | packet_sent | blocked | needs_attention | published | rejected | stale
   reason       TEXT,
   out_dir      TEXT,
   review       TEXT,                       -- qa review.json
@@ -81,8 +81,8 @@ CREATE TABLE IF NOT EXISTS decks (
   draft_pushed_at TEXT,                    -- set once the push succeeded; the push is not repeated
   packet_sent_at TEXT,                     -- when packet.js sent the deck to Telegram
   sound        TEXT,                       -- the sound the packet suggested; the rotation rule reads it back
-  approved_at  TEXT,                       -- "ok PV-07" from the Telegram inbox; a log, the deck was pending anyway
-  skipped_on   TEXT,                       -- "skip PV-07": the packet steps over it on this date only
+  approved_at  TEXT,                       -- "ok PV-07" from the Telegram inbox: when the deck became eligible
+  skipped_on   TEXT,                       -- "skip PV-07": when it was last set back to pending
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL
 );
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS inbox_messages (
   sender       TEXT,
   text         TEXT,
   honoured     INTEGER NOT NULL,           -- 0 when the chat id was not ours
-  action       TEXT,                       -- ok | no | skip | stop | go | status | help | ignored
+  action       TEXT,                       -- ok | no | skip | stop | go | status | queue | show | help | ignored
   deck_key     TEXT,
   reply        TEXT,
   created_at   TEXT NOT NULL
@@ -234,20 +234,36 @@ class State {
     return this.db.prepare('SELECT deck_key FROM decks').all().map((r) => r.deck_key);
   }
 
-  // Every deck still waiting for a packet, oldest first. The packet takes the
-  // first that passes the publish gate, so it needs the queue rather than the
-  // head of it. Brand lives on the run and series on the brief, so the header
-  // line costs one join each.
-  pendingDecks(brand) {
-    return this.db.prepare(`SELECT d.deck_key, d.topic, d.out_dir, d.reason, d.created_at,
+  // Decks in the given statuses, oldest first — the order the packet consumes
+  // the queue in. Brand lives on the run and series on the brief, so the
+  // header line costs one join each.
+  decksByStatus(brand, statuses) {
+    const marks = statuses.map(() => '?').join(', ');
+    return this.db.prepare(`SELECT d.deck_key, d.topic, d.status, d.out_dir, d.reason, d.created_at,
                                    d.draft_id, d.draft_pushed_at, d.review, d.skipped_on, d.approved_at,
                                    b.series, b.captions, b.brief_json
                             FROM decks d
                             JOIN runs r ON r.id = d.run_id
                             LEFT JOIN briefs b ON b.id = d.brief_id
-                            WHERE d.status = 'pending' AND r.brand = ?
-                            ORDER BY d.created_at, d.id`).all(brand);
+                            WHERE d.status IN (${marks}) AND r.brand = ?
+                            ORDER BY d.created_at, d.id`).all(...statuses, brand);
   }
+
+  // Rendered, qa'd, and waiting to be approved. The morning summary asks for
+  // these; the packet does not, because pending is not eligible.
+  pendingDecks(brand) { return this.decksByStatus(brand, ['pending']); }
+
+  // The packet's queue: only an approved deck may be posted. It takes the
+  // first that passes the publish gate, so it needs the queue rather than the
+  // head of it.
+  approvedDecks(brand) { return this.decksByStatus(brand, ['approved']); }
+
+  // The deck the packet would reach for right now, gate aside.
+  oldestApprovedDeck(brand) { return this.approvedDecks(brand)[0] || null; }
+
+  // What "queue" in the Telegram inbox answers with: everything still in
+  // hand, in the order the packet will reach it.
+  queueDecks(brand) { return this.decksByStatus(brand, ['pending', 'approved']); }
 
   // The push happened, and it happens once. Written the moment the provider
   // accepts, so a failure anywhere after it cannot cost us the knowledge that
@@ -312,14 +328,29 @@ class State {
     this.db.prepare(`UPDATE inbox_messages SET ${cols.join(', ')} WHERE update_id = ?`).run(...vals);
   }
 
-  approveDeck(deckKey) { const t = now(); this.updateDeck(deckKey, { approved_at: t }); return t; }
+  // "ok PV-07": the deck becomes eligible for the packet, and the moment it
+  // did is kept on the row. Approving a deck that is already approved writes
+  // the same status again and changes nothing else, so a message delivered
+  // twice is a no-op rather than an error.
+  approveDeck(deckKey) { const t = now(); this.updateDeck(deckKey, { status: 'approved', approved_at: t }); return t; }
 
-  skipDeck(deckKey, date) { this.updateDeck(deckKey, { skipped_on: date }); }
+  // "skip PV-07": back to pending and out of the packet's queue, eligible
+  // again the day it is approved again. The date records when it was last set
+  // aside; approved_at goes, because the approval it names is gone.
+  skipDeck(deckKey, date) { this.updateDeck(deckKey, { status: 'pending', approved_at: null, skipped_on: date }); }
 
   rejectDeck(deckKey, reason) {
     const d = this.deckByKey(deckKey);
     this.updateDeck(deckKey, { status: 'rejected', reason });
     if (d && d.brief_id) this.updateBrief(d.brief_id, { status: 'rejected', reason });
+  }
+
+  // Pending for longer than the queue allows: dropped by the nightly before
+  // PICK, the topic left open (rejected.md scope=figure).
+  markStale(deckKey, reason) {
+    const d = this.deckByKey(deckKey);
+    this.updateDeck(deckKey, { status: 'stale', reason });
+    if (d && d.brief_id) this.updateBrief(d.brief_id, { status: 'stale', reason });
   }
 
   deckCounts(brand) {

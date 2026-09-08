@@ -11,6 +11,7 @@ const history = require('./lib/history');
 const cutouts = require('./lib/cutouts');
 const htmlLib = require('./lib/html');
 const { buildSlide } = require('./lib/slides');
+const treatmentsLib = require('./lib/treatments');
 const { composeCover } = require('./lib/cover');
 const browser = require('./lib/browser');
 const RULES = require('./lib/rules');
@@ -43,8 +44,10 @@ function parseArgs(argv) {
 // run can never overwrite out/<deckId> of a deck the nightly produced. The
 // fixture carries a real-looking deckId on purpose (the schema demands one),
 // which is exactly why the folder, not the id, is what keeps them apart.
+const isFixture = (brief) => !!brief && path.resolve(brief).startsWith(EXAMPLES + path.sep);
+
 function fixtureSafeOut(args) {
-  if (!args.brief || !path.resolve(args.brief).startsWith(EXAMPLES + path.sep)) return args.out;
+  if (!isFixture(args.brief)) return args.out;
   if (path.basename(args.out) === 'test') return args.out;
   const out = path.join(args.out, 'test');
   console.log(`fixture brief: output redirected to ${path.relative(ROOT, out)}/`);
@@ -120,7 +123,24 @@ async function main() {
   const lib = cutouts.loadManifest(args.brand);
   const dataUriCache = new Map();
   lib.dataUri = (c) => { if (!dataUriCache.has(c.id)) dataUriCache.set(c.id, cutouts.fileDataUri(lib, c)); return dataUriCache.get(c.id); };
-  const rows = history.readHistory(args.brand);
+  // History for every rotation rule: published decks from posted.jsonl plus
+  // decks already rendered into this output directory. See lib/history.js.
+  // A deck is never its own history: re-rendering PV-07 must not block on the
+  // cutout, ground or mode that the previous render of PV-07 chose.
+  //
+  // A fixture is a regression test and reads only the committed record. Its
+  // output directory is shared scratch that collects whatever anyone has
+  // rendered lately, and a rotation rule that consulted it would make the
+  // fixture's result depend on the contents of out/test rather than on the
+  // brief — the same run passing or blocking depending on what sat next to it.
+  const fixture = isFixture(args.brief);
+  const rows = history.readHistory(args.brand, { outDir: fixture ? null : args.out })
+    .filter((r) => r.deckId !== brief.deckId);
+  if (fixture) console.log('fixture brief: rotation reads posted.jsonl only, not the output directory');
+  // Caption treatment, rotated no-repeat-within-3 over caption-treatments.json.
+  const treatments = treatmentsLib.loadTreatments(args.brand, tokens);
+  const treatment = treatmentsLib.pick(treatments, rows, history.TREATMENT_WINDOW);
+  const treatmentCheck = history.checkTreatment(rows, treatment.id);
 
   // --- rules before anything is rendered -----------------------------------
   const blocks = [...lintCopy(brief), ...checkStructure(brief)];
@@ -129,6 +149,7 @@ async function main() {
     brief.cover.ground = rows.length ? groundCheck.required : 'white';
   } else if (!groundCheck.ok) blocks.push(groundCheck);
   const mix = history.checkMix(rows, brief.cover.subject); if (!mix.ok) blocks.push(mix);
+  const shape = history.checkShape(rows, brief.shape); if (!shape.ok) blocks.push(shape);
   const mode = history.checkMode(rows, brief.cover.mode); if (!mode.ok) blocks.push(mode);
   if (brief.cover.figure && brief.cover.figure.cutout) {
     const cr = history.checkCutout(rows, brief.cover.figure.cutout); if (!cr.ok) blocks.push(cr);
@@ -143,7 +164,8 @@ async function main() {
   const b = await browser.launch();
   try {
     const page = await b.newPage(tokens, 2);
-    const ctx = { tokens, cutouts: lib, history: rows, rules: history, show: browser.show };
+    const ctx = { tokens, cutouts: lib, history: rows, rules: history, show: browser.show, treatment };
+    ctx.h = treatmentsLib.helpers(treatment, tokens);
     const buildPage = (o) => htmlLib.page({ tokens, ...o });
 
     // Cover.
@@ -187,14 +209,16 @@ async function main() {
     // Cover hash for the history row and the 90-day check.
     const coverHash = await page.evaluate((uri) => window.__pv.phash(uri), `data:image/jpeg;base64,${fs.readFileSync(files[0]).toString('base64')}`);
     cover.resolved.coverHash = coverHash;
-    const postedRow = history.toPostedRow(brief, { cutout: cover.resolved.figure ? { id: cover.resolved.figure.id } : null, position: cover.resolved.position, kicker: cover.resolved.kicker, coverHash });
+    cover.resolved.treatment = treatment.id;
+    const postedRow = history.toPostedRow(brief, { cutout: cover.resolved.figure ? { id: cover.resolved.figure.id } : null, position: cover.resolved.position, kicker: cover.resolved.kicker, treatment: treatment.id, coverHash });
     const deck = {
       deckId: brief.deckId, date: brief.date, rendered: new Date().toISOString(), brand: path.relative(ROOT, args.brand),
       output: { width: tokens.canvas.width * 2, height: tokens.canvas.height * 2, files: files.map((f) => path.basename(f)) },
-      brief, cover: cover.resolved, historyChecks: { ground: groundCheck, mix, mode, position: posCheck, kicker: kickerCheck }, postedRow,
+      brief, cover: cover.resolved, historyChecks: { ground: groundCheck, mix, mode, position: posCheck, kicker: kickerCheck, treatment: treatmentCheck, shape }, postedRow,
     };
     fs.writeFileSync(path.join(outDir, 'deck.json'), JSON.stringify(deck, null, 2));
     console.log(`rendered ${files.length} slides to ${path.relative(ROOT, outDir)}/ (${tokens.canvas.width * 2}x${tokens.canvas.height * 2})`);
+    console.log(`caption treatment: ${treatment.id} (${treatmentCheck.detail})`);
     console.log(`cover: ${brief.cover.subject} · ${brief.cover.mode} · ${brief.cover.ground} · size ${cover.resolved.sizeStep}` +
       (cover.resolved.figure ? ` · ${cover.resolved.figure.id} @ ${cover.resolved.figure.x},${cover.resolved.figure.y} ×${cover.resolved.figure.scale}${cover.resolved.figure.mirror ? ' mirrored' : ''} · position ${cover.resolved.position}` : ''));
 

@@ -16,6 +16,19 @@ module.exports = {
   slideCount: [5, 7],       // deck-rules STRUCTURE
   sameComponentRunMax: 2,   // deck-rules: "at most one of the same component twice in a row" read as no run of three
 
+  // --- layer bounds (qa hard-fail, every deck) -----------------------------
+  // Type never leaves the canvas, full stop: that is the original complaint and
+  // it has no legitimate exception. Figures are different — cover-grammar calls
+  // a detail cover's crop "large and bleeding off an edge", so a detail figure
+  // is allowed off-canvas up to the envelope the bleed anchors in cover.js can
+  // actually produce (left/right-bleed put a quarter of the width off, and
+  // bottom-deep a fifth of the height). Anything past that, or any bleed at all
+  // on a subject that is not detail, is the placement search going wrong.
+  textOffCanvasTolerance: 0.5,   // px, antialiasing only
+  detailBleedMaxFracX: 0.25,     // cover.js hx: left-bleed / right-bleed
+  detailBleedMaxFracY: 0.20,     // cover.js vy: bottom-deep
+  figureOffCanvasTolerance: 1,   // px, rounding between placement and layout
+
   // --- defaults (no number in the files) -----------------------------------
   edgeGlyphMaxCoverage: 0.02, // "never its first or last letters": tolerance for antialiasing at the glyph box edge
   finalWordMaxCoverage: 0.02, // "the final word is never occluded": same tolerance

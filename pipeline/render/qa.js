@@ -48,12 +48,53 @@ function textOverflowFlags(audit, { canvasBox, safeBox, isCover }) {
   return out;
 }
 
+// Layer bounds, by layer type (deck-rules / cover-grammar).
+//
+// Text: zero tolerance. A caption, headline or number that leaves the canvas is
+// clipped copy, and there is no composition in which that is intended. Handled
+// by textOverflowFlags above, which already tests every text node on every
+// slide against the canvas box.
+//
+// Figures: a detail cover is defined by its crop — cover-grammar asks for the
+// figure "large and bleeding off an edge" — so a detail figure is allowed off
+// canvas, but only as far as the bleed anchors in cover.js can place it: a
+// quarter of the width past a side, a fifth of the height past the bottom.
+// Every other subject, and every body-slide image, must sit inside the canvas.
+// Anything else is the placement search having gone wrong, which is what put
+// 40% of PV-06's figure off the right and bottom edges with QA reporting clean.
+function figureBoundsFlags(images, { canvasBox, subject, isCover }) {
+  const out = [];
+  const detail = isCover && subject === 'detail';
+  const tol = RULES.figureOffCanvasTolerance;
+  const maxX = detail ? RULES.detailBleedMaxFracX : 0;
+  const maxY = detail ? RULES.detailBleedMaxFracY : 0;
+  for (const img of images) {
+    const r = img.rect;
+    const over = {
+      left: Math.max(0, -r.x), top: Math.max(0, -r.y),
+      right: Math.max(0, r.x + r.w - canvasBox.w), bottom: Math.max(0, r.y + r.h - canvasBox.h),
+    };
+    const budget = { left: r.w * maxX, right: r.w * maxX, top: r.h * maxY, bottom: r.h * maxY };
+    for (const edge of ['left', 'right', 'top', 'bottom']) {
+      if (over[edge] <= budget[edge] + tol) continue;
+      const pct = Math.round((100 * over[edge]) / (edge === 'left' || edge === 'right' ? r.w : r.h));
+      out.push({
+        rule: 'layer-out-of-bounds',
+        detail: detail
+          ? `${img.cutout || 'image'} bleeds ${Math.round(over[edge])}px past the ${edge} edge (${pct}% of the figure); a detail cover may bleed at most ${Math.round(100 * (edge === 'left' || edge === 'right' ? maxX : maxY))}%`
+          : `${img.cutout || 'image'} is ${Math.round(over[edge])}px past the ${edge} edge (${pct}% of the figure clipped); only a detail cover may bleed`,
+      });
+    }
+  }
+  return out;
+}
+
 async function review(outDir, opts = {}) {
   const deck = JSON.parse(fs.readFileSync(path.join(outDir, 'deck.json'), 'utf8'));
   const brandDir = opts.brandDir || path.join(ROOT, deck.brand);
   const tokens = opts.tokens || loadTokens(brandDir);
   const cutouts = opts.cutouts || cutoutsLib.loadManifest(brandDir);
-  const rows = opts.history || history.readHistory(brandDir);
+  const rows = opts.history || history.readHistory(brandDir, { outDir: path.dirname(outDir) }).filter((r) => r.deckId !== deck.deckId);
   const signalRgb = hexToRgb(tokens.raw.color.signal.value);
   const canvasBox = { x: 0, y: 0, w: tokens.canvas.width, h: tokens.canvas.height };
   const safeBox = { x: tokens.safe.x, y: tokens.safe.y, w: tokens.safe.width, h: tokens.safe.height };
@@ -75,6 +116,8 @@ async function review(outDir, opts = {}) {
 
       // Text overflow, by the shared rule.
       for (const f of textOverflowFlags(a, { canvasBox, safeBox, isCover })) flag(slide, f.rule, f.detail);
+      // Layer bounds, by layer type. Runs on every slide of every deck.
+      for (const f of figureBoundsFlags(a.images, { canvasBox, subject: deck.brief.cover.subject, isCover })) flag(slide, f.rule, f.detail);
       // Floor: 24 (tokens.json size.floor).
       for (const t of a.texts) {
         if (t.fontSize < RULES.floorPx - 0.01) flag(slide, 'below-floor', `"${t.text.slice(0, 40)}" is ${t.fontSize}px, floor is ${RULES.floorPx}`);
@@ -101,7 +144,13 @@ async function review(outDir, opts = {}) {
         const uses = new Set(signalEls.map((p) => `${p.signal || p.role || p.tag}:${p.background === signalRgb ? 'fill' : p.fill === signalRgb || p.stroke === signalRgb ? 'stroke' : 'type'}`));
         if (uses.size > 1) flag(1, 'signal-count', `signal appears as ${[...uses].join(', ')}; at most one element per cover`);
         if (deck.brief.cover.ground === 'white' && signalTyped.length) flag(1, 'signal-type-on-white', 'signal-coloured type on a white ground; on white signal is only a fill block with black type');
-      } else if (signalEls.length) flag(slide, 'signal-on-slide', `signal colour on a body slide (${signalEls.length} elements); signal is covers only`);
+      } else {
+        // Signal on a body slide is allowed in exactly one form: the inline
+        // [[phrase]] emphasis, marked data-signal="emphasis". As a ground, a
+        // block fill or the ink of a whole caption it stays covers-only.
+        const stray = signalEls.filter((p) => p.signal !== 'emphasis');
+        if (stray.length) flag(slide, 'signal-on-slide', `signal colour on a body slide outside the phrase emphasis (${stray.length} elements); signal is otherwise covers only`);
+      }
 
       // Figure layers: composite normally, hard-edged, never enlarged.
       for (const img of a.images) {
@@ -210,4 +259,4 @@ if (require.main === module) {
   }).catch((e) => { console.error(e.stack || e); process.exit(1); });
 }
 
-module.exports = { review, print, textOverflowFlags };
+module.exports = { review, print, textOverflowFlags, figureBoundsFlags };

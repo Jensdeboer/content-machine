@@ -136,6 +136,13 @@ function figureCandidates(tokens, cutout, fixed, sliced, align, subject) {
       const y = fixed.y !== undefined ? fixed.y : vy[vk];
       const bleeds = x < 0 || y < 0 || x + w > W || y + h > H;
       if (subject === 'detail' && !bleeds) continue; // detail covers bleed off an edge
+      // ...and only detail covers do. On any other subject a placement that
+      // leaves the canvas is a clipped figure, not a composition. Dropping
+      // those here means the search finds a legal placement — scaling down
+      // through RULES.scaleSteps if it has to — instead of preferring the
+      // biggest figure and taking `bottom-deep-right-bleed`, which is how
+      // PV-03 and PV-06 lost 40% of the figure off the right and bottom.
+      if (subject !== 'detail' && bleeds) continue;
       // Sliced edges sit on or beyond the canvas edge.
       if (sliced.includes('bottom') && y + h < H - 0.5) continue;
       if (sliced.includes('top') && y > 0.5) continue;
@@ -371,6 +378,14 @@ async function composeCover(brief, ctx, page, buildPage) {
   } else {
     // Figure covers: choose cutout, then search placements.
     const excluded = ctx.history.slice(-ctx.rules.CUTOUT_WINDOW).map((r) => r.cutout).filter(Boolean);
+    // The position rule (cover-grammar ROTATION) used to be checked only after
+    // the cover was composed, so the search would happily settle on a position
+    // the window forbids and the deck blocked with a legal placement still
+    // available. The window is an input to the search, exactly like the cutout
+    // exclusion above. If every placement is excluded the pool is kept as it
+    // was and the post-compose check still blocks, rather than silently
+    // shipping a repeat.
+    const excludedPositions = ctx.history.slice(-ctx.rules.POSITION_WINDOW).map((r) => r.position).filter(Boolean);
     const fig = c.figure || {};
     let candidates;
     if (fig.cutout) {
@@ -431,6 +446,11 @@ async function composeCover(brief, ctx, page, buildPage) {
           pool.push({ place, box, top, zBehind, forced, rank, typeSpaceShare: zc.typeSpaceShare, zc });
         });
       }
+      // Drop placements whose position the rotation window forbids, keeping the
+      // unfiltered pool if that would leave nothing to choose from.
+      const fresh = pool.filter((q) => !excludedPositions.includes(positionLabel(tokens, q.box)));
+      if (fresh.length) { pool.length = 0; pool.push(...fresh); }
+
       // Fewest lines forced in front, then native scale, then type-space share, then the preferred top.
       pool.sort((x, y) => x.forced - y.forced || y.place.scale - x.place.scale || y.typeSpaceShare - x.typeSpaceShare || x.rank - y.rank);
 

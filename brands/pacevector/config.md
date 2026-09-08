@@ -20,6 +20,11 @@ at runtime. Changed by hand, never by the weekly rewrite.
   which is never a trending one. Draft mode costs 90 seconds and buys the
   sound. Direct posting is the fallback for a day away, and becomes the
   default if the sound experiment shows music does not move saves.
+- **Nothing posts unless it is approved.** The nightly renders decks and
+  leaves them `pending`; `pipeline/packet.js` takes the oldest `approved` deck
+  and nothing else. Approval is one word to the Telegram bot - `ok PV-07`,
+  see Telegram below. A day with nothing approved is a quiet day, not a
+  failure: the packet sends one line saying so and exits clean.
 - **Provider: Upload-Post, paid.** It pushes photos into the TikTok drafts,
   verifies both posts landed, and pulls metrics nightly. It is not there for
   convenience: manual metrics entry is the one daily chore with no immediate
@@ -139,6 +144,18 @@ provider.
 - Figures come from the existing 16 cutouts in `design/00-assets/cutouts/`,
   chosen by the manifest (energy, direction, type-space) under the rotation
   rule. Sixteen sustains one post a day.
+- Sixteen is the file count, not the pool a cover picks from. After the type,
+  ground, note and face-forward filters the auto-selection pool is **8** for a
+  full-figure cover and **2** for a detail cover. Eight is comfortable against
+  the no-repeat-within-5 window; two is thin.
+- **The 3-per-20 detail quota stays as it is.** With a pool of 2 and a 5-post
+  no-repeat window, the same cutout may return every 6 posts, so alternating
+  two of them supports a detail cover as often as every 3 posts — a ceiling of
+  6 per 20. Three is well inside that; the quota is achievable and is not the
+  thing to change. What two cutouts cannot give is *variety*: every detail
+  cover will be one of the same two images. Raise the quota above 6 per 20
+  only once more detail crops exist, and get 2-3 more cut for variety's sake
+  well before then. Logged 9 Sep 2026.
 - New cutouts are an occasional batch job - stock photography through the
   house recipe (rembg, greyscale, autocontrast) - not part of the nightly run.
 - Image generation is out of the daily loop entirely. It returns only if the
@@ -204,6 +221,14 @@ Read by `pipeline/run.js`.
 - Feed retry pause (seconds): 60
 - Feed user agent: Mozilla/5.0 (compatible; content-machine/1.0)
 - Max items per scan call: 40
+- `queue_target`: 6. Decks to keep in hand, counting both `pending` and
+  `approved` - an approved deck has not posted yet either. At the start of
+  PICK the nightly counts them: below the target it picks only enough to top
+  it back up (at most "Ideas per run"); at or above it, scan and pick run and
+  the night stops there, and the summary says so.
+- `deck_max_age`: 14. Days. A pending deck older than this is marked stale
+  and dropped before PICK, with a scope=figure row in memory/rejected.md so
+  the topic itself can come back later. The summary names each one.
 - State database: pipeline/state.db
 - Output directory: out
 
@@ -220,14 +245,24 @@ a no is out whatever it scored.
   run summary all go here. With the variables unset the run still completes:
   messages go to stdout and are recorded on the run row.
 - The morning summary carries one photo per pending deck: the cover, captioned
-  with the deck key, series and headline. Approve or reject from those.
+  with the deck key, series, headline and topic, then one line with the counts
+  and how to answer. The cover goes as a downsized preview (`sendPhoto`), not
+  as the posting copy — the packet sends that at 14:00 as a document. Approve
+  or reject from those pictures.
 - Replies are read by `pipeline/inbox.js` every five minutes, the only process
-  that ever reads the bot's updates. Only messages from this chat id count;
-  anything else is logged and ignored. Commands, case-insensitive, one per
-  message, each confirmed with a reply naming the deck:
-  - `ok PV-07` — stays pending (approval logged)
+  that ever reads the bot's updates. **It is the approval gate: a deck posts
+  only after `ok`.** Only messages from this chat id count; anything else is
+  logged and ignored. Commands, case-insensitive, one per message, each
+  confirmed with a reply naming the deck:
+  - `ok PV-07` — pending becomes approved; the next packet may post it. A
+    blocked deck is refused with its reason rather than approved
   - `no PV-07 <reason>` — rejected; the reason goes to memory/rejected.md
-    under the topic slug, scope topic
-  - `skip PV-07` — out of today's packet only, pending again tomorrow
+    under the topic slug, scope topic. The reason is required
+  - `skip PV-07` — back to pending, approval withdrawn; no rejected.md row,
+    so it can be approved again any other day
   - `stop` / `go` — flips `publishing_enabled` below
-  - `status` — pending/blocked counts and the next deck in the queue
+  - `status` — publishing, the pending/approved/blocked counts, and which deck
+    posts next
+  - `queue` — every pending and approved deck, oldest first, with its age
+  - `show PV-07` — any deck's slides as documents, to look before deciding;
+    reading only, changes nothing

@@ -1,0 +1,89 @@
+{
+  "$note": "Named caption treatments for body slides. A treatment is a combination of colour role, weight, size step, emphasis style and anchor/container — the whole visual register of a slide's caption stack, chosen once per deck and applied to every body slide in it. Rotated no-repeat-within-N by pipeline/render/lib/history.js, the same way cutouts.json is rotated. Brand-scoped because every value here names a token role from 01-tokens/tokens.json: this file never carries a hex value or a font name, only role names the renderer resolves through the token layer. Pixel geometry (band padding, rule gaps, side-label column) lives in pipeline/render/component-metrics.json under `caption`.",
+  "version": "0.1",
+
+  "$roles": {
+    "ground": "slideShell ground: white | accent. accent is Vector Navy; it is the ground the cta already uses, so it needs no new token.",
+    "anchor": "where the caption stack sits in the content area: top | centre | bottom",
+    "layout": "stack (kicker above headline) | side-label (kicker in a left column)",
+    "headline.weight": "semi | bold, resolved to type.display.weights",
+    "headline.stepShift": "steps to move along the token size scale from the step the component asks for. Negative is smaller. Positive shifts are NOT used yet: component-capacity.json budgets were measured at the component's own step, so growing a headline needs capacity.js re-run first or the copy budget is a guess about a different size.",
+    "emphasis": "how [[bracketed]] phrases render: colour | weight | chip | underline | signal. Always exactly one [data-accent] element, whatever the style, so the qa accent-count rule is unaffected.",
+    "container": "none | band (solid kicker band) | tint (ground-alt block behind the stack) | rules (hairlines above and below the headline)"
+  },
+
+  "treatments": [
+    {
+      "id": "quiet-left",
+      "note": "The current look, kept in the rotation as the calm end of the range. Reproduces pre-treatment output exactly.",
+      "ground": "white",
+      "anchor": "centre",
+      "layout": "stack",
+      "kicker": { "tone": "mute", "container": "none" },
+      "headline": { "weight": "semi", "stepShift": 0, "tone": "ink" },
+      "body": { "stepShift": 0, "tone": "ink-soft" },
+      "emphasis": "colour",
+      "container": "none"
+    },
+    {
+      "id": "band-top",
+      "note": "Kicker inverted into a solid ink band, stack pushed to the top of the safe area. The headline carries the weight instead of a colour shift.",
+      "ground": "white",
+      "anchor": "top",
+      "layout": "stack",
+      "kicker": { "tone": "on-accent", "container": "band", "bandTone": "ink" },
+      "headline": { "weight": "bold", "stepShift": 0, "tone": "ink" },
+      "body": { "stepShift": 0, "tone": "ink-soft" },
+      "emphasis": "weight",
+      "container": "none"
+    },
+    {
+      "id": "inverse-panel",
+      "note": "The whole slide on Vector Navy. The strongest register in the set, and the only one that breaks a run of white slides. Emphasis is signal ink, the one place on a body slide signal is allowed: 12:1 on this ground, and phrase-scoped so it stays a pop rather than a second brand colour.",
+      "ground": "accent",
+      "anchor": "centre",
+      "layout": "stack",
+      "kicker": { "tone": "mute-inv", "container": "none" },
+      "headline": { "weight": "semi", "stepShift": 0, "tone": "on-accent" },
+      "body": { "stepShift": 0, "tone": "mute-inv" },
+      "emphasis": "signal",
+      "container": "none"
+    },
+    {
+      "id": "tint-block",
+      "note": "Stack sits in a ground-alt block, anchored to the bottom of the safe area. Emphasised phrases become solid ink chips.",
+      "ground": "white",
+      "anchor": "bottom",
+      "layout": "stack",
+      "kicker": { "tone": "mute", "container": "none" },
+      "headline": { "weight": "bold", "stepShift": 0, "tone": "ink" },
+      "body": { "stepShift": 0, "tone": "ink-soft" },
+      "emphasis": "chip",
+      "container": "tint"
+    },
+    {
+      "id": "rule-stack",
+      "note": "Hairlines above and below the headline, borrowed from the cover's type-led hairline-stack device. Mono kicker in accent ink, top anchored.",
+      "ground": "white",
+      "anchor": "top",
+      "layout": "stack",
+      "kicker": { "tone": "accent-ink", "container": "none" },
+      "headline": { "weight": "bold", "stepShift": 0, "tone": "ink" },
+      "body": { "stepShift": 0, "tone": "ink-soft" },
+      "emphasis": "underline",
+      "container": "rules"
+    },
+    {
+      "id": "side-label",
+      "note": "Kicker moves out of the stack into a left-hand mono column, so the caption reads across rather than down. The headline drops one step because the column is narrower.",
+      "ground": "white",
+      "anchor": "centre",
+      "layout": "side-label",
+      "kicker": { "tone": "mute", "container": "none" },
+      "headline": { "weight": "semi", "stepShift": -1, "tone": "ink" },
+      "body": { "stepShift": 0, "tone": "ink-soft" },
+      "emphasis": "colour",
+      "container": "none"
+    }
+  ]
+}

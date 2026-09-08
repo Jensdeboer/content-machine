@@ -26,6 +26,8 @@ const { lintCopy, blocks: lintBlocks, flags: lintFlags } = require('./lib/lint')
 const { callModel, ModelError } = require('./models');
 const { validate } = require('./render/lib/schema-check');
 const capacity = require('./render/capacity');
+const renderHistory = require('./render/lib/history');
+const preview = require('./lib/preview');
 
 const ROOT = path.resolve(__dirname, '..');
 const BRIEF_SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'render', 'brief.schema.json'), 'utf8'));
@@ -182,7 +184,32 @@ const DEDUPE_SHAPE = `{
   ]
 }`;
 
-async function stagePick({ cfg, brain, state, runId, tg, summary, scanned }) {
+// How many ideas tonight. The queue is kept at queue_target: below it, pick
+// only the shortfall (never more than ideasPerRun); at or above it, the queue
+// is full and the night stops after pick. Returns { count, full, need }.
+function queuePlan({ pending, target, perRun }) {
+  const need = target - pending;
+  if (need <= 0) return { count: perRun, full: true, need };
+  return { count: Math.max(1, Math.min(perRun, need)), full: false, need };
+}
+
+// Pending decks older than deck_max_age, oldest first.
+function staleDecks(pendingRows, maxAgeDays, now = new Date()) {
+  const cutoff = now.getTime() - maxAgeDays * 86400000;
+  return pendingRows.filter((d) => d.created_at && Date.parse(d.created_at) < cutoff);
+}
+
+// The cover headline off a deck row's brief, for a caption or a log line.
+function headlineOf(row) {
+  try { const b = JSON.parse(row.brief_json || 'null'); return b && b.cover ? b.cover.headline : null; } catch (e) { return null; }
+}
+
+function staleRow({ date, deck, headline, days }) {
+  const cell = (v) => String(v || '').replace(/\s*\|\s*/g, ' / ').replace(/\s+/g, ' ').trim();
+  return `| ${date} | ${cell(deck.topic)} | ${cell(headline)} | ${cell(`stale: ${deck.deck_key} sat pending for ${days} days without a packet and was dropped by the nightly. The deck, not the topic, is out; the angle may come back.`)} | figure |\n`;
+}
+
+async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, count = cfg.run.ideasPerRun }) {
   const recent = within(brain.posted, cfg.run.topicWindowDays);
   const recentSlugs = new Set(recent.map((r) => r.topic).filter(Boolean));
   // A topic-scoped rejection excludes the slug. A figure-scoped one does not:
@@ -201,7 +228,7 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned }) {
     '',
     '--- series.md ---', brain.files.series, '--- end ---',
     '',
-    `Choose ${cfg.run.ideasPerRun} ideas.`,
+    `Choose ${count} ideas.`,
     '- Weight the mix by the series weights in series.md, and respect its rotation rule.',
     '- Every idea gets a kebab-case topic slug that names the subject, not the headline.',
     '- An idea may come from a scanned item or from the evergreen reserve in series.md.',
@@ -262,12 +289,12 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned }) {
   for (const d of [...exact, ...dupes]) log(`pick: dropped "${d.topic}" — ${d.reason || d.sameAs}`);
 
   // series.md keeps an evergreen reserve for exactly this: a night that comes up short.
-  if (ideas.length < cfg.run.ideasPerRun && brain.evergreen.length) {
-    summary.stages.pickToppedUp = cfg.run.ideasPerRun - ideas.length;
+  if (ideas.length < count && brain.evergreen.length) {
+    summary.stages.pickToppedUp = count - ideas.length;
     log(`pick: only ${ideas.length} ideas survived; the evergreen reserve in series.md covers the rest`);
   }
 
-  ideas = ideas.slice(0, cfg.run.ideasPerRun);
+  ideas = ideas.slice(0, count);
   summary.stages.pick = { proposed: (out.ideas || []).length, droppedExact: exact.length, droppedSameTopic: dupes.length, kept: ideas.length };
   log(`pick: ${ideas.length} ideas (${exact.length} dropped on slug, ${dupes.length} dropped as the same topic)`);
   return { ideas, exact, dupes };
@@ -394,7 +421,46 @@ function withHashtagBlock(caption, hashtags) {
   return `${String(caption).trimEnd()}\n\n${hashtags.join(' ')}`;
 }
 
-async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt = 1 }) {
+
+// What the last decks looked like, in the renderer's own words. Without this
+// the write stage is handed voice, rules and a schema and nothing else, so it
+// produces the same shape every night: eight decks running, every cover came
+// back white, full-figure and sentence-mode, and the body slides settled into
+// one component order. These are the same rules lib/history.js enforces at
+// render time — telling the model about them beforehand is the difference
+// between a deck that varies and a deck the renderer blocks.
+function varietyLines(rows) {
+  if (!rows.length) return ['', 'No decks yet: any cover ground, subject, mode and slide order is open.', ''];
+  const last = rows.slice(-6);
+  const groundNext = renderHistory.checkGround(rows, 'white').required;
+  const recentModes = rows.slice(-(renderHistory.MODE_RUN - 1)).map((r) => r.mode).filter(Boolean);
+  const modeRun = recentModes.length === renderHistory.MODE_RUN - 1 && recentModes.every((m) => m === recentModes[0]) ? recentModes[0] : null;
+  const mixWindow = rows.slice(-(renderHistory.MIX_WINDOW - 1));
+  const mixCounts = {};
+  for (const r of mixWindow) if (r.subject) mixCounts[r.subject] = (mixCounts[r.subject] || 0) + 1;
+  const mixLeft = Object.entries(renderHistory.MIX_QUOTA)
+    .map(([k, q]) => `${k} ${Math.max(0, q - (mixCounts[k] || 0))} left of ${q}`).join(', ');
+  const shapes = last.map((r) => r.shape).filter(Boolean);
+  return [
+    '',
+    '--- what the last decks already did (the renderer enforces all of this) ---',
+    'The most recent decks, oldest first:',
+    ...last.map((r) => `  ${r.deckId}: ground ${r.ground}, ${r.subject}, ${r.mode} mode, cutout ${r.cutout || 'none'}` +
+      `${r.shape ? `, shape ${r.shape}` : ''}${r.components ? `, slides ${r.components.join(' > ')}` : ''}`),
+    '',
+    `- cover.ground MUST be ${groundNext}: the ground strictly alternates white/navy and the last deck was ${renderHistory.groundFamily(rows[rows.length - 1].ground)}.`,
+    `- cover.subject: the mix is ${renderHistory.MIX_WINDOW} posts to 14 full-figure / 3 detail / 2 type-led / 1 conceptual. Remaining in this window: ${mixLeft}. Pick something other than full-figure when the quota allows it.`,
+    modeRun
+      ? `- cover.mode must NOT be "${modeRun}": the last ${renderHistory.MODE_RUN - 1} covers were both ${modeRun}, and three running is refused.`
+      : '- cover.mode: shout, sentence or number, and never the same mode three posts running.',
+    `- Slide components: eleven exist (stat, explainer, numeral-point, checklist, pull-statement, compare, progress-scale, chart, metrics-table, figure-panel, cta). chart and figure-panel have never been used once. Do not reuse the component order above; open on a different component and end on something other than checklist where the content allows.`,
+    shapes.length ? `- Recent deck shapes: ${shapes.join(', ')}. Pick a different one.` : '- Deck shape: pick one and name it in the brief as `shape`.',
+    '- shape is one of: stat-led, myth-bust, comparison, checklist, story, mechanism.',
+    '--- end ---',
+  ];
+}
+
+async function stageWrite({ cfg, brain, idea, sources, history = [], previousErrors, attempt = 1 }) {
   const budgets = CAPACITY ? [
     '',
     '--- how much copy each component holds ---',
@@ -440,6 +506,7 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt =
       '  and for both caption texts; the runner appends this list under the Instagram caption itself.',
       '  The TikTok caption keeps its plain search phrases and gets no hashtags.',
     ] : []),
+    ...varietyLines(history),
     ...budgets,
     previousErrors ? `\nYour previous attempt did not validate:\n${previousErrors}\nFix exactly these and return the whole object again.` : '',
   ].join('\n');
@@ -456,7 +523,7 @@ async function stageWrite({ cfg, brain, idea, sources, previousErrors, attempt =
   if (over.length && attempt === 1) {
     log(`  write: ${over.length} field(s) over budget, rewriting once`);
     const detail = over.map((o) => `${o.where} (${o.component}.${o.field}) is ${o.chars} characters; the budget is ${o.budget}`).join('\n');
-    return stageWrite({ cfg, brain, idea, sources, attempt: 2, previousErrors: `The copy does not fit the components:\n${detail}\nCut these to the budget. Everything else in the deck stays as it is.` });
+    return stageWrite({ cfg, brain, idea, sources, history, attempt: 2, previousErrors: `The copy does not fit the components:\n${detail}\nCut these to the budget. Everything else in the deck stays as it is.` });
   }
   const captions = { ...(out.captions || {}) };
   captions.hashtags = cfg.captions.hashtags ? normaliseHashtags(captions.hashtags) : [];
@@ -511,10 +578,13 @@ async function main() {
     cfg.run.stateDb = cfg.run.stateDb.replace(/\.db$/, '.stub.db');
     cfg.run.outDir = path.join(cfg.run.outDir, 'stub');
   }
+  // The one brain file the nightly writes: stale decks go to rejected.md. A
+  // stub run writes its rows next to its own output instead.
+  const rejectedFile = backend === 'stub' ? path.join(ROOT, cfg.run.outDir, 'rejected.stub.md') : path.join(cfg.dir, 'memory', 'rejected.md');
   const state = new State(path.join(ROOT, cfg.run.stateDb));
   const tg = new Telegram(cfg.telegram);
   const runId = state.startRun(brand);
-  const summary = { brand, runId, backend, stages: {}, briefs: 0, decks: [], deadFeeds: [], drift: [] };
+  const summary = { brand, runId, backend, stages: {}, briefs: 0, decks: [], deadFeeds: [], drift: [], stale: [], queue: null };
   log(`run ${runId}: ${brand}, models backend ${backend}${backend === 'stub' ? ` (state ${cfg.run.stateDb}, output ${cfg.run.outDir})` : ''}`);
 
   try {
@@ -524,9 +594,32 @@ async function main() {
       await tg.send(`drift: ${deckKey} is marked published in state.db but has no row in posted.jsonl.\nThe confirm step did not write it. Nothing was repaired automatically.`);
     }
 
+    // 0b. Stale: a pending deck older than deck_max_age is dropped before the
+    //     queue is counted. The topic stays open (rejected.md scope=figure).
+    const today_ = today();
+    for (const d of staleDecks(state.pendingDecks(brand), cfg.run.deckMaxAgeDays)) {
+      const days = Math.floor((Date.now() - Date.parse(d.created_at)) / 86400000);
+      const headline = headlineOf(d);
+      const reason = `stale: pending for ${days} days, over deck_max_age ${cfg.run.deckMaxAgeDays}; dropped ${today_}`;
+      state.markStale(d.deck_key, reason);
+      fs.mkdirSync(path.dirname(rejectedFile), { recursive: true });
+      fs.appendFileSync(rejectedFile, staleRow({ date: today_, deck: d, headline, days }));
+      summary.stale.push({ deckKey: d.deck_key, topic: d.topic, days });
+      log(`stale: ${d.deck_key} (${d.topic}) pending ${days} days; dropped, topic left open in ${path.relative(ROOT, rejectedFile)}`);
+    }
+
     // 1-2. Run-level stages. A failure here is the night, not one deck.
     const scanned = await stageScan({ cfg, brain, state, runId, tg, summary });
-    const { ideas } = await stagePick({ cfg, brain, state, runId, tg, summary, scanned });
+    // Decks in hand, which is pending plus approved: an approved deck has not
+    // posted yet, so counting only pending would top the queue up past the
+    // target every night the packet has a backlog to work through.
+    const inHand = state.queueDecks(brand).length;
+    const plan = queuePlan({ pending: inHand, target: cfg.run.queueTarget, perRun: cfg.run.ideasPerRun });
+    summary.queue = { pending: inHand, target: cfg.run.queueTarget, ...plan };
+    log(`queue: ${inHand} deck(s) in hand (pending + approved), target ${cfg.run.queueTarget}: ${plan.full ? 'full; scan and pick run, then the night stops' : `picking ${plan.count}`}`);
+    const { ideas: picked } = await stagePick({ cfg, brain, state, runId, tg, summary, scanned, count: plan.count });
+    const ideas = plan.full ? [] : picked;
+    if (plan.full) log(`queue full: pick found ${picked.length} idea(s), none taken forward`);
     const evidence = scanned.filter((s) => s.tier === 'evidence-source');
 
     // 3-6, per idea, isolated.
@@ -551,7 +644,8 @@ async function main() {
         state.updateBrief(briefId, { status: 'verified' });
 
         // 4. WRITE
-        let { brief, captions, overBudget } = await stageWrite({ cfg, brain, idea, sources });
+        const deckHistory = renderHistory.readHistory(cfg.dir, { outDir: path.join(ROOT, cfg.run.outDir) });
+        let { brief, captions, overBudget } = await stageWrite({ cfg, brain, idea, sources, history: deckHistory });
         brief = { ...brief, deckId: deckKey, date: today(), topic: idea.topic };
 
         const texts = [
@@ -637,9 +731,14 @@ async function main() {
     const attention = summary.decks.filter((d) => d.status === 'needs_attention');
     state.finishRun(runId, 'ok', summary);
 
+    const q = summary.queue;
     const lines = [
       `${brand}: run ${runId} finished`,
       `${summary.briefs} briefs, ${pending.length} pending, ${blocked.length} blocked, ${attention.length} needs attention`,
+      q.full
+        ? `queue full: ${q.pending} in hand, target ${q.target}. Scan and pick ran (${summary.stages.pick ? summary.stages.pick.kept : 0} idea(s) found); nothing verified, written or rendered tonight.`
+        : `queue: ${q.pending} in hand before tonight, target ${q.target}; picked ${q.count}`,
+      summary.stale.length ? `stale, dropped after ${cfg.run.deckMaxAgeDays} days: ${summary.stale.map((s) => `${s.deckKey} (${s.topic}, ${s.days}d)`).join(', ')}; topics left open in rejected.md` : '',
       summary.deadFeeds.length ? `${summary.deadFeeds.length} dead feed(s): ${summary.deadFeeds.map((d) => d.feed).join(', ')}` : 'all feeds alive',
       summary.drift.length ? `drift: ${summary.drift.join(', ')} published without a posted.jsonl row` : '',
       '',
@@ -648,15 +747,38 @@ async function main() {
     await tg.send(lines.join('\n'));
     log('\n' + lines.join('\n'));
 
-    // One photo per pending deck: the cover, with the key, series and headline
-    // in the caption. This is what "ok PV-07" / "no PV-07 <reason>" in the
-    // Telegram inbox (pipeline/inbox.js) is answered from.
-    for (const d of pending) {
-      const caption = [d.deckKey, d.series, d.headline].filter(Boolean).join(' · ');
-      if (d.cover && fs.existsSync(d.cover)) await tg.sendPhoto(d.cover, { caption });
-      else await tg.send(`${caption}\n(no cover image at ${d.cover})`);
+    // One photo per deck that is pending RIGHT NOW — tonight's and every older
+    // one still waiting — because the approval gate is answered from these
+    // pictures, and a deck nobody was shown is a deck nobody approves.
+    //
+    // A preview, so sendPhoto and not sendDocument: the posting copy goes out
+    // at 14:00 in the packet, as a document, uncompressed. The cover is
+    // downsized first (lib/preview.js) rather than uploading 2160x2700 for
+    // Telegram to re-compress anyway.
+    const waiting = state.pendingDecks(brand);
+    const shrink = await preview.open({ log });
+    try {
+      for (const d of waiting) {
+        const caption = [d.deck_key, d.series, headlineOf(d), d.topic].filter(Boolean).join('\n');
+        const cover = path.join(d.out_dir || path.join(ROOT, cfg.run.outDir, d.deck_key), '01.jpg');
+        if (!fs.existsSync(cover)) { await tg.send(`${caption}\n(no cover image at ${cover})`); continue; }
+        const small = await shrink.cover(cover);
+        await tg.sendPhoto(small || cover, { caption });
+      }
+    } finally {
+      await shrink.close();
     }
-    if (pending.length) await tg.send(`Reply "ok PV-xx", "no PV-xx <reason>" or "skip PV-xx" for any of these; "status" for the queue.`);
+
+    // The last message of the night: what is in hand, and the one line that
+    // says how to answer. pipeline/inbox.js reads the reply.
+    const counts = state.deckCounts(brand);
+    const closing = [
+      waiting.length ? `${waiting.length} deck(s) above are waiting for a decision.` : 'Nothing is pending: no deck is waiting for a decision.',
+      `pending ${counts.pending || 0} · approved ${counts.approved || 0} · blocked ${counts.blocked || 0}`,
+      "Reply 'ok <deck>' to approve, 'no <deck> <reason>' to reject, or 'queue' to see everything pending.",
+    ].join('\n');
+    await tg.send(closing);
+    log('\n' + closing);
     state.close();
     process.exit(0);
   } catch (e) {
@@ -670,4 +792,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine };
+module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine, queuePlan, staleDecks, staleRow, headlineOf };

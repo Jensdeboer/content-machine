@@ -25,6 +25,7 @@ const { loadTokens } = require('./lib/tokens');
 const cutoutsLib = require('./lib/cutouts');
 const htmlLib = require('./lib/html');
 const { buildSlide } = require('./lib/slides');
+const treatmentsLib = require('./lib/treatments');
 const browser = require('./lib/browser');
 const RULES = require('./lib/rules');
 const { textOverflowFlags } = require('./qa');
@@ -290,15 +291,41 @@ async function measure({ brandDir, log = () => {} }) {
   const lib = cutoutsLib.loadManifest(brandDir);
   const cache = new Map();
   lib.dataUri = (c) => { if (!cache.has(c.id)) cache.set(c.id, cutoutsLib.fileDataUri(lib, c)); return cache.get(c.id); };
-  const ctx = { tokens, cutouts: lib, show: browser.show };
   const sampleSet = samples(lib.cutouts[0].id);
 
+  // A budget has to hold whichever caption treatment the rotation picks, and
+  // the treatments do not share a measure: tint-block pads the stack inward on
+  // both sides, side-label gives the copy a narrower column, and the bold
+  // treatments set wider glyphs at the same step. So every component is
+  // measured under every treatment and the budget written out is the smallest
+  // that fitted anywhere. Measuring only the baseline would publish a number
+  // that overflows the moment a tighter treatment comes up in the rotation.
+  const set = treatmentsLib.loadTreatments(brandDir, tokens);
   const b = await browser.launch();
   const out = {};
   try {
     const page = await b.newPage(tokens, 1);
+    const perTreatment = [];
+    for (const t of set.treatments) {
+      log(`treatment ${t.id}:`);
+      const ctx = { tokens, cutouts: lib, show: browser.show, treatment: t, h: treatmentsLib.helpers(t, tokens) };
+      const one = {};
+      for (const [name, fields] of Object.entries(FIELDS)) {
+        one[name] = await measureComponent(page, tokens, ctx, name, sampleSet[name], fields, log);
+      }
+      perTreatment.push([t.id, one]);
+    }
+    // Fold to the per-field minimum, recording which treatment set it.
     for (const [name, fields] of Object.entries(FIELDS)) {
-      const fieldsOut = await measureComponent(page, tokens, ctx, name, sampleSet[name], fields, log);
+      const fieldsOut = {};
+      for (const f of fields) {
+        let best = null;
+        for (const [id, one] of perTreatment) {
+          const cand = one[name][f];
+          if (!best || cand.budget < best.budget) best = { ...cand, tightest: id };
+        }
+        fieldsOut[f] = best;
+      }
       out[name] = LABELS[name] ? { $as: LABELS[name], fields: fieldsOut } : { fields: fieldsOut };
     }
   } finally {
@@ -309,7 +336,7 @@ async function measure({ brandDir, log = () => {} }) {
 
 function document_(components, brandDir) {
   return {
-    $note: 'Measured, not estimated. pipeline/render/capacity.js lays each template out in Chromium in the real fonts at the real sizes and grows every field of a component together until the slide fails qa.js\'s text-overflow rule. "budget" is what the write stage is told and the number to write to; "fits" is the length that was still fitting when growth stopped; "reference" is the length of the real copy it grew from; "lines" is how many lines the budget occupies. The budgets hold together: one slide carrying all of them at once was rendered and fits. Stale as soon as a token, template or font changes; run the script again.',
+    $note: 'Measured, not estimated. pipeline/render/capacity.js lays each template out in Chromium in the real fonts at the real sizes and grows every field of a component together until the slide fails qa.js\'s text-overflow rule. "budget" is what the write stage is told and the number to write to; "fits" is the length that was still fitting when growth stopped; "reference" is the length of the real copy it grew from; "lines" is how many lines the budget occupies; "tightest" names the caption treatment that produced the smallest budget, which is the one written out. The budgets hold together: one slide carrying all of them at once was rendered and fits. Stale as soon as a token, template or font changes; run the script again.',
     $measured: new Date().toISOString().slice(0, 10),
     $brand: path.relative(ROOT, brandDir).replace(/\\/g, '/'),
     $rules: {
@@ -418,6 +445,6 @@ async function main() {
   console.log(`wrote ${path.relative(ROOT, OUT_FILE)}`);
 }
 
-module.exports = { measure, load, promptLines, budgetFindings, componentKey, filler, setPath, atPath, OUT_FILE };
+module.exports = { measure, load, promptLines, budgetFindings, componentKey, filler, setPath, atPath, samples, OUT_FILE };
 
 if (require.main === module) main().catch((e) => { console.error(e.stack || e); process.exit(1); });

@@ -1,5 +1,5 @@
 {
-  "$fixture": "Telegram getUpdates result shape, for `node pipeline/inbox.js pacevector --fixture pipeline/fixtures/inbox.json --dry-run`. Chat 1000 is ours here; 2000 is a stranger.",
+  "$fixture": "Telegram getUpdates result shape, for `node pipeline/inbox.js pacevector --fixture pipeline/fixtures/inbox.json --dry-run`. Chat 1000 is ours here; 2000 is a stranger. The order matters: the decks move through the lifecycle as the batch is read.",
   "our_chat_id": 1000,
   "result": [
     { "update_id": 501, "message": { "message_id": 1, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930000, "text": "ok PV-07" } },
@@ -12,6 +12,13 @@
     { "update_id": 508, "message": { "message_id": 8, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930070, "text": "ok PV-03" } },
     { "update_id": 509, "message": { "message_id": 9, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930080, "text": "no PV-99 does not exist" } },
     { "update_id": 510, "message": { "message_id": 10, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930090, "text": "thanks, looks good" } },
-    { "update_id": 511, "message": { "message_id": 11, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930100, "photo": [{ "file_id": "x" }] } }
+    { "update_id": 511, "message": { "message_id": 11, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930100, "photo": [{ "file_id": "x" }] } },
+    { "update_id": 512, "message": { "message_id": 12, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930110, "text": "show PV-07" } },
+    { "update_id": 513, "message": { "message_id": 13, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930120, "text": "Show pv-99" } },
+    { "update_id": 514, "message": { "message_id": 14, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930130, "text": "queue" } },
+    { "update_id": 515, "message": { "message_id": 15, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930140, "text": "no PV-10" } },
+    { "update_id": 516, "message": { "message_id": 16, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930150, "text": "skip PV-07" } },
+    { "update_id": 517, "message": { "message_id": 17, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930160, "text": "ok pv-07" } },
+    { "update_id": 518, "message": { "message_id": 18, "from": { "id": 1000, "first_name": "Jens" }, "chat": { "id": 1000, "type": "private" }, "date": 1788930170, "text": "ok PV-07" } }
   ]
 }
