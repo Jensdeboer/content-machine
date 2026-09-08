@@ -185,7 +185,12 @@ const DEDUPE_SHAPE = `{
 async function stagePick({ cfg, brain, state, runId, tg, summary, scanned }) {
   const recent = within(brain.posted, cfg.run.topicWindowDays);
   const recentSlugs = new Set(recent.map((r) => r.topic).filter(Boolean));
-  const rejectedSlugs = new Set(brain.rejected.map((r) => r.slug).filter(Boolean));
+  // A topic-scoped rejection excludes the slug. A figure-scoped one does not:
+  // the topic stays open, and the picker is told which figure died and what
+  // survived so it proposes the surviving angle rather than the dead figure.
+  const rejectedTopics = brain.rejected.filter((r) => r.scope !== 'figure');
+  const rejectedFigures = brain.rejected.filter((r) => r.scope === 'figure');
+  const rejectedSlugs = new Set(rejectedTopics.map((r) => r.slug).filter(Boolean));
   const seriesCounts = {};
   for (const r of within(brain.posted, 20 * 2)) seriesCounts[r.series] = (seriesCounts[r.series] || 0) + 1;
 
@@ -204,6 +209,10 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned }) {
     '',
     `Already used in the last ${cfg.run.topicWindowDays} days (do not repeat): ${JSON.stringify([...recentSlugs])}`,
     `Rejected, never re-propose: ${JSON.stringify([...rejectedSlugs])}`,
+    ...(rejectedFigures.length ? [
+      'Figures rejected on topics that stay open. The figure named is dead; the topic may be proposed again on the surviving angle in the reason:',
+      JSON.stringify(rejectedFigures.map((r) => ({ topic: r.slug, idea: r.idea, reason: r.reason })), null, 1),
+    ] : []),
     `Series counts in recent history: ${JSON.stringify(seriesCounts)}`,
     '',
     'Scanned items, best first:',
@@ -237,7 +246,12 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned }) {
       JSON.stringify(recent.map((r) => ({ topic: r.topic || null, headline: r.headline || null, series: r.series })), null, 1),
       '',
       'Rejected (slug + idea + reason):',
-      JSON.stringify(brain.rejected.map((r) => ({ topic: r.slug, idea: r.idea, reason: r.reason })), null, 1),
+      JSON.stringify(rejectedTopics.map((r) => ({ topic: r.slug, idea: r.idea, reason: r.reason })), null, 1),
+      ...(rejectedFigures.length ? [
+        '',
+        'These topics are NOT rejected. Only the figure named was, and a candidate on the same topic is allowed as long as it does not rest on that figure:',
+        JSON.stringify(rejectedFigures.map((r) => ({ topic: r.slug, rejectedFigure: r.idea, reason: r.reason })), null, 1),
+      ] : []),
     ].join('\n');
     const dd = await callModel({ stage: 'pick', prompt: dedupePrompt, schema: DEDUPE_SHAPE, config: cfg, log });
     dupes = (dd.duplicates || []).filter((d) => d && d.topic);

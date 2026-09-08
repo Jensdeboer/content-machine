@@ -62,7 +62,13 @@ function parseRejected(text) {
     if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue;
     if (/^date$/i.test(cells[0])) continue;
     if (cells.every((c) => !c)) continue;
-    out.push({ date: cells[0] || '', slug: (cells[1] || '').toLowerCase(), idea: cells[2] || '', reason: cells[3] || '' });
+    // Scope (fifth column, optional). Only the exact word "figure" narrows a
+    // rejection to one figure or angle and leaves the topic eligible. Anything
+    // else, a missing cell, an empty cell, a typo, an older four-column row,
+    // is "topic": the permanent exclusion. A rejection whose scope cannot be
+    // read excludes more, never less.
+    const scope = String(cells[4] || '').trim().toLowerCase() === 'figure' ? 'figure' : 'topic';
+    out.push({ date: cells[0] || '', slug: (cells[1] || '').toLowerCase(), idea: cells[2] || '', reason: cells[3] || '', scope });
   }
   return out;
 }
