@@ -29,7 +29,14 @@ assert.strictEqual(draftTitle('', 90, 'PV-01 topic'), 'PV-01 topic');
 assert.strictEqual(draftTitle('x'.repeat(200), 90).length, 90, 'no boundary: hard cut');
 const caption = 'a'.repeat(582);
 assert.ok(draftTitle(caption, 90).length <= 90, 'a caption-sized string can never come out over the limit');
-console.log('draftTitle: prefix, word boundary, limit, fallback ok');
+// Short headlines get the topic slug so the drafts list says something.
+assert.strictEqual(draftTitle('2.7M', 90, 'PV-02', { topic: 'air-pollution-marathon-performance' }), '2.7M · air-pollution-marathon-performance');
+assert.strictEqual(draftTitle('Run slower.', 90, 'x', { topic: 'easy-pace' }), 'Run slower. · easy-pace', '11 characters is short');
+assert.strictEqual(draftTitle('Run slower!!', 90, 'x', { topic: 'easy-pace' }), 'Run slower!!', '12 characters is not');
+assert.strictEqual(draftTitle('2.7M', 90, 'PV-02'), '2.7M', 'no topic known: the headline alone');
+const shortLong = draftTitle('2.7M', 20, 'x', { topic: 'a-very-long-topic-slug-that-will-not-fit' });
+assert.ok(shortLong.length <= 20 && shortLong.startsWith('2.7M'), `short headline plus slug still cut to the limit: ${JSON.stringify(shortLong)}`);
+console.log('draftTitle: prefix, word boundary, limit, fallback, short-headline slug ok');
 
 // --- preflight --------------------------------------------------------------
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-'));

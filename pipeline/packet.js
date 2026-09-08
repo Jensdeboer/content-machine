@@ -102,9 +102,15 @@ function coverHeadline(deck, dir) {
   return null;
 }
 
-function draftTitle(headline, max, fallback) {
+// A shout or a bare number ("2.7M") is a correct title and a useless label
+// in the drafts list, so a headline under SHORT_TITLE_CHARS gets the topic
+// slug appended: "2.7M · air-pollution-marathon-performance". Still cut to
+// the limit at a word boundary.
+const SHORT_TITLE_CHARS = 12;
+function draftTitle(headline, max, fallback, { topic } = {}) {
   let t = String(headline || fallback || '').replace(/\s+/g, ' ').trim();
   if (!t) return String(fallback || '').slice(0, max);
+  if (t.length < SHORT_TITLE_CHARS && topic) t = `${t} · ${topic}`;
   if (t.length <= max) return t;
   const cut = t.lastIndexOf(' ', max);
   t = (cut > 0 ? t.slice(0, cut) : t.slice(0, max)).replace(/[\s,;:.!?\u2014-]+$/u, '');
@@ -266,7 +272,7 @@ async function main() {
       // title: the headline, the draft's label. description: the TikTok
       // caption and nothing else, never the Instagram one, never both. The
       // mode is fixed inside provider.js: inbox draft, never a direct post.
-      const title = draftTitle(coverHeadline(deck, dir), cfg.provider.limits.titleChars, `${deck.deck_key} ${deck.topic || ''}`);
+      const title = draftTitle(coverHeadline(deck, dir), cfg.provider.limits.titleChars, `${deck.deck_key} ${deck.topic || ''}`, { topic: deck.topic });
       log(`upload-post: draft title "${title}" (${title.length} characters, limit ${cfg.provider.limits.titleChars}); description is the TikTok caption (${captions.tiktok.length} characters, limit ${cfg.provider.limits.descriptionChars}); post_mode ${provider.POST_MODE}`);
       const push = await provider.pushPhotos({
         url: cfg.provider.photoUrl,
