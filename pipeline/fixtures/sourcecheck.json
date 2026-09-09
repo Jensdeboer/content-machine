@@ -1,0 +1,17 @@
+{
+  "$fixture": "MODELS_BACKEND=stub only. The sourceability pre-check PICK runs before an idea is committed. One response per call; a stub night makes one call, and a second only if the first drops a candidate and a replacement round follows. Every verdict here is sourceable=true, so a stub run behaves exactly as it did before the pre-check existed and the fixture never becomes the thing under test. A verdict for a topic that is not in the candidate list is ignored, and a candidate with no verdict is kept — the stage fails open.",
+  "responses": [
+    {
+      "verdicts": [
+        {
+          "topic": "easy-pace-too-fast",
+          "sourceable": true,
+          "reason": "conversational-pace and intensity-distribution figures are well covered in the training literature"
+        }
+      ]
+    },
+    {
+      "verdicts": []
+    }
+  ]
+}

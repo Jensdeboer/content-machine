@@ -369,6 +369,74 @@ class State {
   runBriefs(runId) {
     return this.db.prepare('SELECT id, topic, series, status, reason FROM briefs WHERE run_id = ? ORDER BY id').all(runId);
   }
+
+  // How often a picked idea failed to become a usable deck, over the last N
+  // runs of this brand. Every idea that got as far as a deck key has a row in
+  // decks — including the ones parked by verify before a slide was rendered —
+  // so this table is the whole attempt history and needs no join.
+  //
+  // `rate` is what PICK sizes itself against: pick enough ideas that the
+  // survivors close the queue deficit. Runs still in flight are excluded, and
+  // so is the current run, whose decks are still being written as it reads
+  // this. A run with no decks at all (queue was full, nothing picked) carries
+  // no signal and is skipped rather than counted as a perfect night.
+  blockStats(brand, { runLimit = 7, excludeRunId = null } = {}) {
+    const runs = this.db.prepare(
+      'SELECT id FROM runs WHERE brand = ? AND status != ? ORDER BY id DESC LIMIT ?',
+    ).all(brand, 'running', runLimit).map((r) => r.id).filter((id) => id !== excludeRunId);
+    if (!runs.length) return { runs: 0, total: 0, blocked: 0, rate: null, byReason: {}, perRun: [] };
+    const marks = runs.map(() => '?').join(',');
+    // Status AS AT THE END OF THE RUN, from the run summary — not decks.status,
+    // which is the deck's status NOW. A deck that qa blocked and the reviewer
+    // later rejected reads "rejected" in decks and would be counted as a human
+    // decision rather than the pipeline loss it was; the summary is written
+    // once when the run finishes and is never rewritten.
+    const summaries = new Map(
+      this.db.prepare(`SELECT id, summary FROM runs WHERE id IN (${marks})`).all(...runs)
+        .map((r) => [r.id, r.summary]),
+    );
+    const deckRows = this.db.prepare(`SELECT run_id, deck_key, status, reason FROM decks WHERE run_id IN (${marks}) ORDER BY id`).all(...runs);
+    const byReason = {};
+    const perRun = new Map(runs.map((id) => [id, { runId: id, total: 0, blocked: 0, reasons: [], source: 'summary' }]));
+    let total = 0, blocked = 0;
+    const count = (bucket, status, reason) => {
+      total++; bucket.total++;
+      if (status !== 'blocked' && status !== 'needs_attention') return;
+      blocked++; bucket.blocked++;
+      const kind = classifyBlock(reason);
+      byReason[kind] = (byReason[kind] || 0) + 1;
+      bucket.reasons.push(kind);
+    };
+    for (const id of runs) {
+      const bucket = perRun.get(id);
+      let decks = null;
+      try { const d = JSON.parse(summaries.get(id) || 'null'); if (d && Array.isArray(d.decks)) decks = d.decks; } catch (e) { decks = null; }
+      if (decks) { for (const d of decks) count(bucket, d.status, d.reason); continue; }
+      // No usable summary (an old run, or one that died before writing it):
+      // fall back to the decks table and say so, since its status may have
+      // moved on since the night.
+      bucket.source = 'decks-table';
+      for (const r of deckRows) if (r.run_id === id) count(bucket, r.status, r.reason);
+    }
+    const seen = [...perRun.values()].filter((r) => r.total > 0);
+    return {
+      runs: seen.length, total, blocked,
+      rate: total ? blocked / total : null,
+      byReason,
+      perRun: seen.sort((a, b) => a.runId - b.runId),
+    };
+  }
 }
 
-module.exports = { State, SCHEMA };
+// Which stage lost the deck. Read off the reason string the stage wrote, so a
+// new failure mode lands in "other" rather than being silently miscounted as
+// one of the two known ones.
+function classifyBlock(reason) {
+  const t = String(reason || '');
+  if (!t.trim()) return 'other';
+  if (/^Figure\b/i.test(t) || /primary[- ]tier|could not be traced|no primary source/i.test(t)) return 'sourcing';
+  if (/^slide \d+\b/i.test(t) || /renderer blocked|text-overflow|dense-zone|layer-out-of-bounds|occluded|below-floor|phash|stop-test/i.test(t)) return 'render-qa';
+  return 'other';
+}
+
+module.exports = { State, SCHEMA, classifyBlock };

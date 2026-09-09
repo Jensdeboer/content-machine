@@ -62,6 +62,15 @@ console.log('ageDays ok');
 // --- the fixture, dry run: nothing written -------------------------------------
 const fixture = JSON.parse(fs.readFileSync(path.join(ROOT, 'pipeline', 'fixtures', 'inbox.json'), 'utf8')).result;
 const before = { config: fs.readFileSync(files.config, 'utf8'), rejected: fs.readFileSync(files.rejected, 'utf8') };
+
+// rejected.md is copied in from the real brand so the parser sees real rows,
+// which means it already contains whatever the account has rejected for real.
+// Assertions therefore count the rows THIS TEST added, never the rows in the
+// file: a genuine rejection of a slug the fixture also uses would otherwise
+// fail the suite, which is exactly what happened when the account rejected
+// tibial-load-rehab-exercises and footwear-plantar-flexor-fatigue.
+const occurrences = (text, slug) => (text.match(new RegExp(slug, 'g')) || []).length;
+const rowsAdded = (slug) => occurrences(fs.readFileSync(files.rejected, 'utf8'), slug) - occurrences(before.rejected, slug);
 (async () => {
   const replies = [];
   const documents = [];
@@ -145,7 +154,7 @@ const before = { config: fs.readFileSync(files.config, 'utf8'), rejected: fs.rea
   assert.match(r[515].reply, /a rejection needs a reason/);
   assert.deepStrictEqual(r[515].writes, []);
   assert.strictEqual(state.deckByKey('PV-10').status, 'pending', 'a reasonless "no" rejects nothing');
-  assert.strictEqual((fs.readFileSync(files.rejected, 'utf8').match(/tibial-load-rehab-exercises/g) || []).length, 0, 'and writes no rejected.md row');
+  assert.strictEqual(rowsAdded('tibial-load-rehab-exercises'), 0, 'and writes no rejected.md row');
 
   // skip on an approved deck withdraws the approval. The batch has run past
   // this point already, so the reply is what says what happened here; the
@@ -173,7 +182,7 @@ const before = { config: fs.readFileSync(files.config, 'utf8'), rejected: fs.rea
   assert.ok(again.results.every((x) => x.action === 'ignored' && /already processed|not a text message/.test(x.why || '')), `a re-delivered batch is a no-op: ${JSON.stringify(again.results.map((x) => [x.updateId, x.action, x.why]))}`);
   assert.strictEqual(again.results.filter((x) => /already processed/.test(x.why || '')).length, 17, 'every recorded update, the stranger included, is recognised');
   assert.strictEqual(replies.length, 0);
-  assert.strictEqual((fs.readFileSync(files.rejected, 'utf8').match(/footwear-plantar-flexor-fatigue/g) || []).length, 1, 'no duplicate rejected.md row');
+  assert.strictEqual(rowsAdded('footwear-plantar-flexor-fatigue'), 1, 'no duplicate rejected.md row');
   console.log('re-delivery: idempotent');
 
   // --- acting on the same command twice, offset or no offset ----------------------
@@ -186,7 +195,7 @@ const before = { config: fs.readFileSync(files.config, 'utf8'), rejected: fs.rea
   const noTwice = { cfg, state, brand: 'pacevector', cmd: inbox.parse('no PV-10 the exercises are physio territory'), date: '2026-09-08', dryRun: false, files };
   inbox.handle(noTwice);
   inbox.handle(noTwice);
-  assert.strictEqual((fs.readFileSync(files.rejected, 'utf8').match(/tibial-load-rehab-exercises/g) || []).length, 1, '"no" replayed writes one rejected.md row, not two');
+  assert.strictEqual(rowsAdded('tibial-load-rehab-exercises'), 1, '"no" replayed writes one rejected.md row, not two');
   assert.strictEqual(state.deckByKey('PV-10').status, 'rejected');
   console.log('replay: ok and no are both safe to run twice');
 

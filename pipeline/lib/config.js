@@ -118,6 +118,7 @@ function loadConfig(root, brand) {
     },
     timeoutMs: cfg.number('Models', 'Timeout per call', { fallback: '300' }) * 1000,
     verifyWebTools: cfg.bool('Models', 'Verify may use web search', { fallback: 'no' }),
+    sourceCheckWebTools: cfg.bool('Models', 'Sourceability pre-check may use web search', { fallback: 'no' }),
   };
 
   // --- Run settings -------------------------------------------------------
@@ -133,6 +134,9 @@ function loadConfig(root, brand) {
     feedUserAgent: cfg.value('Run settings', 'Feed user agent'),
     maxItemsPerScanCall: cfg.number('Run settings', 'Max items per scan call'),
     queueTarget: cfg.number('Run settings', 'queue_target'),
+    pickMax: cfg.number('Run settings', 'pick_max', { fallback: '8' }),
+    blockRateRuns: cfg.number('Run settings', 'block_rate_runs', { fallback: '7' }),
+    sourceabilityPrecheck: cfg.bool('Run settings', 'sourceability_precheck', { fallback: 'yes' }),
     deckMaxAgeDays: cfg.number('Run settings', 'deck_max_age'),
     stateDb: cfg.value('Run settings', 'State database'),
     outDir: cfg.value('Run settings', 'Output directory'),

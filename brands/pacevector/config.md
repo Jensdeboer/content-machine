@@ -182,6 +182,7 @@ an alias, so swapping a model for every stage that uses it is one word.
 |---|---|
 | scan | sonnet |
 | pick | sonnet |
+| sourcecheck | sonnet |
 | verify | strong |
 | write | strong |
 | render | none |
@@ -204,8 +205,17 @@ an alias, so swapping a model for every stage that uses it is one word.
   Failing twice fails the stage, and the deck parks as needs_attention. Half
   parsed output is never returned to a caller.
 - Verify may use web search: yes. The verify stage runs with WebSearch and
-  WebFetch allowed so a figure can be traced to a real url; every other stage
-  runs with no tools.
+  WebFetch allowed so a figure can be traced to a real url.
+- Sourceability pre-check may use web search: yes. The pre-check inside PICK
+  gets the same two tools for the same reason, and nothing else does.
+- Every other stage runs with no tools.
+
+The `sourcecheck` stage is the pre-check PICK runs before an idea is committed
+(see Run settings, `sourceability_precheck`). It is a cheap look, one call for
+all candidates, on the same alias as pick. It is not a second verify and its
+answers are never carried into verify: it may only drop a candidate, never
+mark one as sourced, so nothing it says can let a figure past verify that
+verify would otherwise block.
 
 ## Run settings
 
@@ -226,6 +236,25 @@ Read by `pipeline/run.js`.
   PICK the nightly counts them: below the target it picks only enough to top
   it back up (at most "Ideas per run"); at or above it, scan and pick run and
   the night stops there, and the summary says so.
+- `sourceability_precheck`: yes. Before an idea is committed to a brief, PICK
+  asks once, for all candidates together, whether a primary-tier source
+  plausibly exists for each central figure, and drops the ones that plainly
+  have none. Sourcing was the largest single loss at verify, and verify runs
+  after write, so a figure that dies there has already paid for a whole deck.
+  This is a filter and only a filter: it drops candidates, it never supplies a
+  source, and verify stays exactly as strict. An idea carrying no figures skips
+  it entirely. Off means the night behaves as it did before.
+- `pick_max`: 8. The most ideas one night may pick, whatever the arithmetic
+  below asks for. A night where everything blocked would otherwise ask for a
+  very large number off a single bad sample.
+- `block_rate_runs`: 7. How many finished runs the block rate is measured over.
+- Ideas per run is the number PICK asks for when the queue is already full.
+  When the queue is short, the number is computed instead: the deficit divided
+  by the recent survival rate (1 minus the block rate over `block_rate_runs`
+  runs, read from state.db), rounded up and capped at `pick_max`. At a deficit
+  of 3 and a 50% block rate that is 6 ideas, not 3, because half of them are
+  expected not to survive verify and QA. The survival rate is floored so a
+  night where everything blocked cannot divide by zero.
 - `deck_max_age`: 14. Days. A pending deck older than this is marked stale
   and dropped before PICK, with a scope=figure row in memory/rejected.md so
   the topic itself can come back later. The summary names each one.

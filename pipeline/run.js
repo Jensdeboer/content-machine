@@ -184,13 +184,36 @@ const DEDUPE_SHAPE = `{
   ]
 }`;
 
-// How many ideas tonight. The queue is kept at queue_target: below it, pick
-// only the shortfall (never more than ideasPerRun); at or above it, the queue
-// is full and the night stops after pick. Returns { count, full, need }.
-function queuePlan({ pending, target, perRun }) {
+// The floor under the survival rate. A run of decks that all blocked gives a
+// block rate of 1, and 1/(1-1) is not a number of ideas; capping the divisor
+// at this says "assume at worst three in four are lost" rather than dividing
+// by zero, and pick_max catches the result either way.
+const MIN_SURVIVAL = 0.25;
+
+// How many ideas tonight. The queue is kept at queue_target: at or above it,
+// the queue is full and the night stops after pick.
+//
+// Below it, picking the bare shortfall systematically under-fills, because
+// some of what is picked does not survive: a figure that cannot be sourced is
+// blocked at verify, and a deck that fails a rule is blocked at QA. Picking 3
+// against a deficit of 3 while half of them block leaves the queue 1.5 short
+// every night, and the shortfall compounds. So the shortfall is divided by the
+// recent survival rate — 1 minus the observed block rate over the last
+// block_rate_runs finished runs (State.blockStats) — and rounded up.
+//
+// `blockRate` null means there is no history to measure yet; the night falls
+// back to the old behaviour of picking the shortfall, capped at ideasPerRun,
+// rather than inventing a rate. Returns { count, full, need, ... }.
+function queuePlan({ pending, target, perRun, blockRate = null, maxPerRun = perRun }) {
   const need = target - pending;
-  if (need <= 0) return { count: perRun, full: true, need };
-  return { count: Math.max(1, Math.min(perRun, need)), full: false, need };
+  if (need <= 0) return { count: perRun, full: true, need, blockRate, survival: null, wanted: null, capped: false };
+  if (blockRate === null || !Number.isFinite(blockRate)) {
+    return { count: Math.max(1, Math.min(perRun, need)), full: false, need, blockRate: null, survival: null, wanted: null, capped: false };
+  }
+  const survival = Math.max(MIN_SURVIVAL, 1 - Math.min(Math.max(blockRate, 0), 1));
+  const wanted = Math.ceil(need / survival);
+  const count = Math.max(1, Math.min(maxPerRun, wanted));
+  return { count, full: false, need, blockRate, survival, wanted, capped: wanted > maxPerRun };
 }
 
 // Pending decks older than deck_max_age, oldest first.
@@ -209,7 +232,84 @@ function staleRow({ date, deck, headline, days }) {
   return `| ${date} | ${cell(deck.topic)} | ${cell(headline)} | ${cell(`stale: ${deck.deck_key} sat pending for ${days} days without a packet and was dropped by the nightly. The deck, not the topic, is out; the angle may come back.`)} | figure |\n`;
 }
 
-async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, count = cfg.run.ideasPerRun }) {
+const SOURCECHECK_SHAPE = `{
+  "verdicts": [
+    { "topic": "kebab-case-slug", "sourceable": true, "reason": "one line: what the source would be, or why there is none" }
+  ]
+}`;
+
+// A cheap look at whether each candidate's central figure could be sourced at
+// all, run inside PICK before an idea is committed to a brief.
+//
+// Why it exists: sourcing is the largest single loss, and it is discovered at
+// VERIFY, which runs AFTER write. A figure that no primary source states costs
+// a verify call, a write call and a render before anything notices. The same
+// question asked here costs one call for the whole candidate list.
+//
+// What it is NOT: a second verify. It returns a boolean and a sentence, never
+// a source row, and nothing it says reaches stageVerify — no url, no quote, no
+// "already checked" flag. Verify re-asks every question from scratch against
+// the full sources.md rules. The only thing this stage can do to a candidate
+// is remove it, so it cannot widen what gets through: an idea it passes is an
+// idea verify judges exactly as it would have judged it anyway.
+//
+// It fails OPEN by design. An unparseable answer, a missing verdict, a thrown
+// call: the candidate is kept and verify decides, because a filter that
+// silently eats good ideas when the model hiccups is worse than one that
+// occasionally lets a doomed idea through to the stage that was always going
+// to catch it.
+async function stageSourceCheck({ cfg, brain, ideas, evidence, log: logFn = log, call = callModel }) {
+  const withFigures = ideas.filter((i) => Array.isArray(i.figures) && i.figures.filter(Boolean).length);
+  if (!withFigures.length) return { kept: ideas, dropped: [], checked: 0, skipped: ideas.length };
+
+  const prompt = [
+    'For each candidate below, decide one thing only: could its central figure plausibly be traced to a primary-tier source?',
+    'This is a quick look, not a full verification. Do not collect quotes, urls or retrieval dates.',
+    '',
+    '--- sources.md (what counts as primary) ---', brain.files.sources, '--- end ---',
+    '',
+    'Answer sourceable=false only when you are reasonably confident no primary-tier source states the figure:',
+    'it is a coaching rule of thumb, a number that circulates without a study behind it, or a claim the literature',
+    'contradicts. When a plausible primary source exists, or you are unsure, answer sourceable=true and let the',
+    'verify stage do the real work. Being unsure is a true, not a false.',
+    '',
+    `Today is ${today()}.`,
+    '',
+    'Candidates:',
+    JSON.stringify(withFigures.map((i) => ({ topic: i.topic, angle: i.angle, figures: i.figures })), null, 1),
+    '',
+    'Evidence-source items already pulled tonight, which are real and dated:',
+    JSON.stringify((evidence || []).slice(0, 30).map((e) => ({ title: e.title, url: e.url, published: e.published })), null, 1),
+  ].join('\n');
+
+  let verdicts = [];
+  try {
+    const out = await call({
+      stage: 'sourcecheck', prompt, schema: SOURCECHECK_SHAPE, config: cfg, log: logFn,
+      allowedTools: cfg.models.sourceCheckWebTools ? ['WebSearch', 'WebFetch'] : undefined,
+    });
+    verdicts = Array.isArray(out.verdicts) ? out.verdicts : [];
+  } catch (e) {
+    logFn(`pick: sourceability pre-check failed (${e.message}); keeping every candidate and letting verify decide`);
+    return { kept: ideas, dropped: [], checked: 0, skipped: ideas.length, failed: e.message };
+  }
+
+  const bad = new Map();
+  for (const v of verdicts) {
+    if (!v || !v.topic || v.sourceable !== false) continue;   // anything but an explicit false is a keep
+    bad.set(String(v.topic).toLowerCase(), String(v.reason || 'no primary-tier source found'));
+  }
+  const dropped = [];
+  const kept = ideas.filter((i) => {
+    const reason = bad.get(String(i.topic).toLowerCase());
+    if (!reason) return true;
+    dropped.push({ topic: i.topic, reason });
+    return false;
+  });
+  return { kept, dropped, checked: withFigures.length, skipped: ideas.length - withFigures.length };
+}
+
+async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, evidence = [], count = cfg.run.ideasPerRun, need = count }) {
   const recent = within(brain.posted, cfg.run.topicWindowDays);
   const recentSlugs = new Set(recent.map((r) => r.topic).filter(Boolean));
   // A topic-scoped rejection excludes the slug. A figure-scoped one does not:
@@ -288,6 +388,52 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, count
 
   for (const d of [...exact, ...dupes]) log(`pick: dropped "${d.topic}" — ${d.reason || d.sameAs}`);
 
+  // Pass 3: sourceability. Cheap, and it moves the commonest loss off the
+  // expensive path. Only ever removes candidates; see stageSourceCheck.
+  let unsourceable = [];
+  let sourceCheck = null;
+  if (cfg.run.sourceabilityPrecheck) {
+    sourceCheck = await stageSourceCheck({ cfg, brain, ideas, evidence });
+    unsourceable = sourceCheck.dropped;
+    ideas = sourceCheck.kept;
+    for (const d of unsourceable) log(`pick: dropped "${d.topic}" — no primary source in sight: ${d.reason}`);
+  }
+
+  // Replacements, one round only. The pre-check just removed candidates the
+  // night was counting on, so ask once more for the shortfall, excluding
+  // everything already proposed or dropped, and put the newcomers through the
+  // same pre-check. One round, never a loop: a night where nothing is
+  // sourceable should come up short and say so, not keep paying for calls.
+  let toppedUp = [];
+  if (unsourceable.length && ideas.length < need) {
+    const spent = new Set([...ideas, ...unsourceable, ...exact, ...dupes].map((i) => String(i.topic).toLowerCase()));
+    const replacePrompt = [
+      prompt,
+      '',
+      `A first pass already ran. Propose ${need - ideas.length} DIFFERENT idea(s).`,
+      `Do not propose any of these again: ${JSON.stringify([...spent])}`,
+      'These were dropped because their central figure has no primary-tier source. Do not propose the same figures:',
+      JSON.stringify(unsourceable.map((d) => ({ topic: d.topic, why: d.reason })), null, 1),
+    ].join('\n');
+    try {
+      const more = await callModel({ stage: 'pick', prompt: replacePrompt, schema: PICK_SHAPE, config: cfg, log });
+      let fresh = (more.ideas || []).filter((i) => i && i.topic && i.series
+        && !spent.has(String(i.topic).toLowerCase())
+        && !recentSlugs.has(String(i.topic).toLowerCase())
+        && !rejectedSlugs.has(String(i.topic).toLowerCase()));
+      if (fresh.length && cfg.run.sourceabilityPrecheck) {
+        const second = await stageSourceCheck({ cfg, brain, ideas: fresh, evidence });
+        for (const d of second.dropped) log(`pick: replacement "${d.topic}" also unsourceable — ${d.reason}`);
+        fresh = second.kept;
+      }
+      toppedUp = fresh;
+      ideas = ideas.concat(fresh);
+      log(`pick: ${fresh.length} replacement idea(s) for ${unsourceable.length} dropped on sourceability`);
+    } catch (e) {
+      log(`pick: replacement round failed (${e.message}); continuing with ${ideas.length} idea(s)`);
+    }
+  }
+
   // series.md keeps an evergreen reserve for exactly this: a night that comes up short.
   if (ideas.length < count && brain.evergreen.length) {
     summary.stages.pickToppedUp = count - ideas.length;
@@ -295,9 +441,15 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, count
   }
 
   ideas = ideas.slice(0, count);
-  summary.stages.pick = { proposed: (out.ideas || []).length, droppedExact: exact.length, droppedSameTopic: dupes.length, kept: ideas.length };
-  log(`pick: ${ideas.length} ideas (${exact.length} dropped on slug, ${dupes.length} dropped as the same topic)`);
-  return { ideas, exact, dupes };
+  summary.stages.pick = {
+    proposed: (out.ideas || []).length, droppedExact: exact.length, droppedSameTopic: dupes.length,
+    droppedUnsourceable: unsourceable.length, replacements: toppedUp.length,
+    sourceChecked: sourceCheck ? sourceCheck.checked : 0,
+    sourceCheckFailed: sourceCheck && sourceCheck.failed ? sourceCheck.failed : undefined,
+    kept: ideas.length,
+  };
+  log(`pick: ${ideas.length} ideas (${exact.length} dropped on slug, ${dupes.length} dropped as the same topic, ${unsourceable.length} dropped as unsourceable)`);
+  return { ideas, exact, dupes, unsourceable };
 }
 
 // --------------------------------------------------------------------------
@@ -614,13 +766,24 @@ async function main() {
     // posted yet, so counting only pending would top the queue up past the
     // target every night the packet has a backlog to work through.
     const inHand = state.queueDecks(brand).length;
-    const plan = queuePlan({ pending: inHand, target: cfg.run.queueTarget, perRun: cfg.run.ideasPerRun });
+    // How many of the last runs' decks were lost to a block, so pick can size
+    // itself to the deficit AND the expected losses. This run is excluded: its
+    // own decks are still being written.
+    const blocks = state.blockStats(brand, { runLimit: cfg.run.blockRateRuns, excludeRunId: runId });
+    const plan = queuePlan({
+      pending: inHand, target: cfg.run.queueTarget, perRun: cfg.run.ideasPerRun,
+      blockRate: blocks.rate, maxPerRun: cfg.run.pickMax,
+    });
     summary.queue = { pending: inHand, target: cfg.run.queueTarget, ...plan };
-    log(`queue: ${inHand} deck(s) in hand (pending + approved), target ${cfg.run.queueTarget}: ${plan.full ? 'full; scan and pick run, then the night stops' : `picking ${plan.count}`}`);
-    const { ideas: picked } = await stagePick({ cfg, brain, state, runId, tg, summary, scanned, count: plan.count });
+    summary.blocks = { runs: blocks.runs, total: blocks.total, blocked: blocks.blocked, rate: blocks.rate, byReason: blocks.byReason };
+    const sizing = plan.full ? 'full; scan and pick run, then the night stops'
+      : plan.blockRate === null ? `picking ${plan.count} (no block history yet)`
+        : `picking ${plan.count} for a deficit of ${plan.need} at a ${Math.round(plan.blockRate * 100)}% block rate over ${blocks.runs} run(s)${plan.capped ? `, capped from ${plan.wanted} by pick_max ${cfg.run.pickMax}` : ''}`;
+    log(`queue: ${inHand} deck(s) in hand (pending + approved), target ${cfg.run.queueTarget}: ${sizing}`);
+    const evidence = scanned.filter((s) => s.tier === 'evidence-source');
+    const { ideas: picked } = await stagePick({ cfg, brain, state, runId, tg, summary, scanned, evidence, count: plan.count, need: plan.need });
     const ideas = plan.full ? [] : picked;
     if (plan.full) log(`queue full: pick found ${picked.length} idea(s), none taken forward`);
-    const evidence = scanned.filter((s) => s.tier === 'evidence-source');
 
     // 3-6, per idea, isolated.
     for (const idea of ideas) {
@@ -792,4 +955,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine, queuePlan, staleDecks, staleRow, headlineOf };
+module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine, queuePlan, staleDecks, staleRow, headlineOf, stageSourceCheck, MIN_SURVIVAL };
