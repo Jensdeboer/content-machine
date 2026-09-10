@@ -22,8 +22,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'brands', 'pacevector'))) {
   if (fs.statSync(src).isFile()) fs.copyFileSync(src, path.join(brandDir, f));
 }
 fs.copyFileSync(path.join(ROOT, 'brands', 'pacevector', 'memory', 'rejected.md'), path.join(brandDir, 'memory', 'rejected.md'));
+fs.copyFileSync(path.join(ROOT, 'brands', 'pacevector', 'memory', 'notes.md'), path.join(brandDir, 'memory', 'notes.md'));
 const cfg = loadConfig(tmp, 'pacevector');
-const files = { config: path.join(brandDir, 'config.md'), rejected: path.join(brandDir, 'memory', 'rejected.md') };
+const files = { config: path.join(brandDir, 'config.md'), rejected: path.join(brandDir, 'memory', 'rejected.md'), notes: path.join(brandDir, 'memory', 'notes.md') };
 
 // A state with the decks the fixture names. PV-03 blocked, the rest pending.
 const state = new State(path.join(tmp, 'state.db'));
@@ -205,6 +206,101 @@ const rowsAdded = (slug) => occurrences(fs.readFileSync(files.rejected, 'utf8'),
   assert.strictEqual(state.oldestApprovedDeck('pacevector').deck_key, 'PV-07');
   assert.deepStrictEqual(state.queueDecks('pacevector').map((d) => d.deck_key), ['PV-07']);
   console.log('queue: packet.js sees PV-07 and nothing else');
+
+  // --- notes: free-text feedback, any deck, any state --------------------------------
+  const notesOf = () => fs.readFileSync(files.notes, 'utf8');
+  const noteRows = (deckKey) => notesOf().split('\n').filter((l) => l.split('|').map((c) => c.trim())[2] === deckKey);
+  const at = new Date('2026-09-10T14:32:09Z');
+  const noteCmd = (text, key = 'PV-07') => inbox.handle({
+    cfg, state, brand: 'pacevector', cmd: inbox.parse(`note ${key} ${text}`), date: '2026-09-10', dryRun: false, files, now: at,
+  });
+
+  // The command parses, and the deck key is normalised like every other.
+  assert.deepStrictEqual(inbox.parse('note pv-07 the cover is flat'),
+    { action: 'note', deckKey: 'PV-07', reason: 'the cover is flat' });
+  assert.strictEqual(inbox.parse('note PV-07').reason, '', 'no text parses, and is refused below');
+
+  // Refused with an explanation when there is nothing to say, and nothing written.
+  const empty = noteCmd('');
+  assert.match(empty.reply, /a note needs something to say/);
+  assert.deepStrictEqual(empty.writes, []);
+  assert.strictEqual(noteRows('PV-07').length, 0, 'an empty note writes no row');
+
+  // PV-07 is approved by this point in the batch: a note lands anyway.
+  assert.strictEqual(state.deckByKey('PV-07').status, 'approved');
+  const n1 = noteCmd('cover reads flat next to the others');
+  assert.match(n1.reply, /Noted on PV-07 .*which is approved: "cover reads flat next to the others"/);
+  assert.match(n1.reply, /Sunday review/);
+  assert.strictEqual(noteRows('PV-07').length, 1, 'one row for one note');
+  const cells = noteRows('PV-07')[0].split('|').map((c) => c.trim());
+  assert.strictEqual(cells[1], '2026-09-10 14:32', 'timestamp to the minute');
+  assert.strictEqual(cells[2], 'PV-07');
+  assert.strictEqual(cells[3], 'systems-over-motivation', 'topic slug, which outlives the deck');
+  assert.strictEqual(cells[4], 'cover reads flat next to the others');
+
+  // A rejected deck still takes notes: most feedback arrives after the fact.
+  assert.strictEqual(state.deckByKey('PV-08').status, 'rejected');
+  assert.match(noteCmd('the number was fine, the framing was not', 'PV-08').reply, /which is rejected/);
+  assert.strictEqual(noteRows('PV-08').length, 1);
+
+  // A pipe in the text cannot break the table.
+  noteCmd('slide 3 | slide 4 both drift', 'PV-10');
+  assert.strictEqual(noteRows('PV-10')[0].split('|').length, 6, 'pipes in the text are escaped, not new cells');
+
+  // Replayed verbatim in the same minute: one row, not two.
+  noteCmd('cover reads flat next to the others');
+  assert.strictEqual(noteRows('PV-07').length, 1, 'a replayed note does not double');
+  // A different note in the same minute is a second observation, and is kept.
+  noteCmd('also the kicker is doing nothing');
+  assert.strictEqual(noteRows('PV-07').length, 2);
+  console.log('note: any state, timestamped, pipe-safe, replay-safe');
+
+  // --- ok with trailing feedback ------------------------------------------------------
+  const okWith = (key, text) => inbox.handle({
+    cfg, state, brand: 'pacevector', cmd: inbox.parse(`ok ${key} ${text}`), date: '2026-09-10', dryRun: false, files, now: at,
+  });
+  // The batch leaves nothing pending, so this case gets its own deck rather
+  // than depending on what the fixture happened to leave behind.
+  mk('PV-11', 'marathon-pace-work-volume', 'pending', 'Marathon pace is never free volume.');
+  const r5 = okWith('PV-11', 'good, but the aside is weak');
+  assert.strictEqual(state.deckByKey('PV-11').status, 'approved', 'ok still approves');
+  assert.match(r5.reply, /^Approved PV-11/);
+  assert.match(r5.reply, /Noted: "good, but the aside is weak"/);
+  assert.strictEqual(noteRows('PV-11').length, 1);
+  assert.ok(r5.writes.some((x) => /status approved/.test(x)) && r5.writes.some((x) => /notes\.md \+=/.test(x)),
+    'both writes are reported');
+
+  // Feedback survives a refused approval: the criticism is still the criticism.
+  assert.strictEqual(state.deckByKey('PV-03').status, 'blocked');
+  const before03 = noteRows('PV-03').length;
+  const r4 = okWith('PV-03', 'shame, the angle was the best one this week');
+  assert.match(r4.reply, /is blocked and will not be approved/);
+  assert.strictEqual(state.deckByKey('PV-03').status, 'blocked', 'still refused');
+  assert.strictEqual(noteRows('PV-03').length, before03 + 1, 'but the note is kept');
+
+  // Bare "ok" is untouched: no note, no extra line.
+  const bare = inbox.handle({ cfg, state, brand: 'pacevector', cmd: inbox.parse('ok PV-11'), date: '2026-09-10', dryRun: false, files, now: at });
+  assert.doesNotMatch(bare.reply, /Noted/, 'ok with no text behaves exactly as before');
+  console.log('ok <text>: approves and notes, keeps the note when approval is refused');
+
+  // --- notes.md is write-only ---------------------------------------------------------
+  // The whole point of the file: the nightly must not read it, so no comment
+  // can quietly become a rule. Asserted structurally, on code lines only.
+  const readers = [];
+  for (const f of fs.readdirSync(path.join(ROOT, 'pipeline'), { recursive: true })) {
+    const full = path.join(ROOT, 'pipeline', String(f));
+    if (!String(f).endsWith('.js') || !fs.existsSync(full) || fs.statSync(full).isDirectory()) continue;
+    if (full === path.join(ROOT, 'pipeline', 'inbox.js')) continue;          // the one writer
+    if (full.startsWith(path.join(ROOT, 'pipeline', 'test'))) continue;       // tests may look
+    const code = fs.readFileSync(full, 'utf8').split('\n')
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    if (/notes\.md/.test(code)) readers.push(path.relative(ROOT, full));
+  }
+  assert.deepStrictEqual(readers, [], `notes.md must be write-only; these reference it in code: ${readers.join(', ')}`);
+  // And the brain the nightly loads must not carry it.
+  const brainSrc = fs.readFileSync(path.join(ROOT, 'pipeline', 'lib', 'brain.js'), 'utf8');
+  assert.doesNotMatch(brainSrc, /notes/, 'loadBrain must not read notes.md into the nightly');
+  console.log('notes.md: write-only, no reader in pipeline/, absent from loadBrain');
 
   // --- one reader -------------------------------------------------------------------
   assert.deepStrictEqual(inbox.otherReadersOf(path.join(ROOT, 'pipeline'), path.join(ROOT, 'pipeline', 'inbox.js')), [], 'inbox.js must be the only reader of Telegram updates');

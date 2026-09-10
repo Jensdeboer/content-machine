@@ -129,6 +129,51 @@ provider.
 - If a deck ever needs its own line, that is a signal the deck is too close to
   the medical line in banned.md - rewrite the deck, don't add a disclaimer.
 
+## Verify tiers
+
+Verify classifies every claim rather than gating on sources. Only FABRICATED
+stops a deck.
+
+| Tier | What it is | Source needed |
+|---|---|---|
+| figure-backed | a specific empirical number, primary source open access under a reusable licence, and a chart/plot/table in that paper about this claim | yes, plus the figure |
+| sourced | a specific empirical number, one primary source, no usable figure or not open access | yes |
+| common knowledge | no specific empirical number: qualitative claims, and prescriptive numbers that are coaching convention | no |
+| fabricated | a specific empirical number with no source, or one that contradicts its cited source | blocks the deck |
+
+- **One source is enough.** The two-source cross-check is retired.
+- The test for common knowledge is what the number is DOING. Describing the
+  world is empirical and owes a source ("runners drifted 7.7% over three
+  hours"). Telling the reader what to do is prescription and owes none ("keep
+  80% of it easy", "run 5-6 days a week", "no new shoes on race day").
+- FIGURE-BACKED is checked, not asserted: `pipeline/lib/evidence.js` confirms
+  open access, a reusable licence and a relevant figure against Europe PMC,
+  and demotes to SOURCED when any of that fails.
+- **The figure image is not fetched.** Every documented route is gated or dead
+  from this box (reCAPTCHA on the NCBI bin path, 403/404 on the OA service,
+  520 on europepmc.org). The claim records the pmcid, filename, label,
+  caption, licence and a human-openable url; `imagePath` stays null. Nothing
+  renders a figure yet, so nothing is lost — but the fetch has to be solved
+  before the evidence-figure component ships.
+- Instagram captions carry one closing line, "Source: Matomäki et al. 2023",
+  for decks with sourced or figure-backed claims. TikTok is untouched.
+
+## Notes
+
+- `memory/notes.md` collects the free-text feedback sent with `note` and with
+  `ok <text>`. One row per note: timestamp to the minute, deck key, topic slug,
+  text.
+- **The pipeline never reads it.** The nightly does not load it and does not
+  behave differently because of anything in it. A single remark is an
+  observation, not a rule, and a system that re-tunes on every comment chases
+  noise. `pipeline/test/inbox.js` asserts structurally that no file in
+  `pipeline/` outside the inbox references the file.
+- It is an input to the weekly review (see ROADMAP), where notes are read
+  against the metrics and a repeated observation may become doctrine — by
+  editing voice.md, deck-rules.md, config.md or the design files by hand. A
+  change to how decks are made comes from that review, never from a row
+  landing in notes.md.
+
 ## Comments
 
 - No comment push, no drafted replies, nothing automated. Revisit when a post
@@ -185,6 +230,7 @@ an alias, so swapping a model for every stage that uses it is one word.
 | sourcecheck | sonnet |
 | verify | strong |
 | write | strong |
+| tag | sonnet |
 | render | none |
 | qa | none |
 
@@ -206,6 +252,9 @@ an alias, so swapping a model for every stage that uses it is one word.
   parsed output is never returned to a caller.
 - Verify may use web search: yes. The verify stage runs with WebSearch and
   WebFetch allowed so a figure can be traced to a real url.
+- Tag may use web search: no. The `tag` stage in `pipeline/ingest-assets.js`
+  describes an image it is given the path to and reads nothing else; it gets
+  the Read tool and no network.
 - Sourceability pre-check may use web search: yes. The pre-check inside PICK
   gets the same two tools for the same reason, and nothing else does.
 - Every other stage runs with no tools.
@@ -236,6 +285,26 @@ Read by `pipeline/run.js`.
   PICK the nightly counts them: below the target it picks only enough to top
   it back up (at most "Ideas per run"); at or above it, scan and pick run and
   the night stops there, and the summary says so.
+- **Angle preference by series.** What kind of claim a series wants, so PICK
+  stops reaching for a number where a number was never the point. Verify
+  classifies claims either way (see Verify tiers below); this only steers what
+  gets proposed.
+
+  | Series | Angle preference |
+  |---|---|
+  | Running 101 | qualitative |
+  | Mindset | qualitative |
+  | Science | figure-backed |
+  | Gear | none |
+  | Mistakes | none |
+
+  - `qualitative` — do not prefer ideas carrying numbers. These series teach a
+    way of running, and a made-up-looking figure buys nothing: most of what
+    they say is common knowledge in the tier sense and needs no source.
+  - `figure-backed` — actively prefer ideas where tonight's scan already found
+    a paper with a chart or table, so the deck can carry real evidence.
+  - `none` — no steer either way; judge the idea on its own merits.
+
 - `sourceability_precheck`: yes. Before an idea is committed to a brief, PICK
   asks once, for all candidates together, whether a primary-tier source
   plausibly exists for each central figure, and drops the ones that plainly
@@ -285,6 +354,14 @@ a no is out whatever it scored.
   confirmed with a reply naming the deck:
   - `ok PV-07` — pending becomes approved; the next packet may post it. A
     blocked deck is refused with its reason rather than approved
+  - `ok PV-07 <text>` — the same, and the trailing text is kept as a note.
+    Approving something you still have a criticism of is the usual case. The
+    note is kept even when the approval is refused: the criticism does not
+    stop being true because the deck turned out to be blocked
+  - `note PV-07 <text>` — feedback on any deck in any state, including ones
+    already posted or rejected, since most of what is worth saying is only
+    visible once a deck is live or once the metrics land. Goes to
+    memory/notes.md, changes nothing else
   - `no PV-07 <reason>` — rejected; the reason goes to memory/rejected.md
     under the topic slug, scope topic. The reason is required
   - `skip PV-07` — back to pending, approval withdrawn; no rejected.md row,

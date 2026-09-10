@@ -48,42 +48,65 @@ function textOverflowFlags(audit, { canvasBox, safeBox, isCover }) {
   return out;
 }
 
-// Layer bounds, by layer type (deck-rules / cover-grammar).
+// Layer bounds, by layer type and by slide (deck-rules / cover-grammar).
 //
-// Text: zero tolerance. A caption, headline or number that leaves the canvas is
-// clipped copy, and there is no composition in which that is intended. Handled
-// by textOverflowFlags above, which already tests every text node on every
-// slide against the canvas box.
+// TEXT — never clips, cover or body slide, no exception. Handled by
+// textOverflowFlags above, which tests every text node on every slide.
 //
-// Figures: a detail cover is defined by its crop — cover-grammar asks for the
-// figure "large and bleeding off an edge" — so a detail figure is allowed off
-// canvas, but only as far as the bleed anchors in cover.js can place it: a
-// quarter of the width past a side, a fifth of the height past the bottom.
-// Every other subject, and every body-slide image, must sit inside the canvas.
-// Anything else is the placement search having gone wrong, which is what put
-// 40% of PV-06's figure off the right and bottom edges with QA reporting clean.
-function figureBoundsFlags(images, { canvasBox, subject, isCover }) {
+// COVER FIGURE — may bleed. cover-grammar calls a figure meeting the canvas
+// edge "a deliberate bleed" and builds the detail type around it, so this is a
+// composition, not a fault, for every cover type. Two ceilings separate a
+// composition from a broken placement: at most `coverBleedMaxAreaFrac` of the
+// figure's area off the canvas, and no zone the manifest marks `dense` off it
+// at all. See rules.js for why each is there.
+//
+// BODY-SLIDE FIGURE — no bleed. It sits inside the type safe zone.
+//
+// Measured on the VISIBLE box: an image cropped by a container it sits in
+// (figure-panel centres an oversized cutout inside a hidden-overflow panel)
+// is not off the canvas, whatever its own element rect says.
+function figureBoundsFlags(images, { canvasBox, safeBox, isCover, cutout = null, placement = null }) {
   const out = [];
-  const detail = isCover && subject === 'detail';
-  const tol = RULES.figureOffCanvasTolerance;
-  const maxX = detail ? RULES.detailBleedMaxFracX : 0;
-  const maxY = detail ? RULES.detailBleedMaxFracY : 0;
+  const push = (detail) => out.push({ rule: 'layer-out-of-bounds', detail });
+
   for (const img of images) {
-    const r = img.rect;
-    const over = {
-      left: Math.max(0, -r.x), top: Math.max(0, -r.y),
-      right: Math.max(0, r.x + r.w - canvasBox.w), bottom: Math.max(0, r.y + r.h - canvasBox.h),
-    };
-    const budget = { left: r.w * maxX, right: r.w * maxX, top: r.h * maxY, bottom: r.h * maxY };
-    for (const edge of ['left', 'right', 'top', 'bottom']) {
-      if (over[edge] <= budget[edge] + tol) continue;
-      const pct = Math.round((100 * over[edge]) / (edge === 'left' || edge === 'right' ? r.w : r.h));
-      out.push({
-        rule: 'layer-out-of-bounds',
-        detail: detail
-          ? `${img.cutout || 'image'} bleeds ${Math.round(over[edge])}px past the ${edge} edge (${pct}% of the figure); a detail cover may bleed at most ${Math.round(100 * (edge === 'left' || edge === 'right' ? maxX : maxY))}%`
-          : `${img.cutout || 'image'} is ${Math.round(over[edge])}px past the ${edge} edge (${pct}% of the figure clipped); only a detail cover may bleed`,
-      });
+    const r = img.visible || img.rect;
+    if (!r || r.w <= 0 || r.h <= 0) continue;   // fully clipped: nothing on screen to be out of bounds
+
+    if (!isCover) {
+      const over = {
+        left: safeBox.x - r.x, top: safeBox.y - r.y,
+        right: (r.x + r.w) - (safeBox.x + safeBox.w), bottom: (r.y + r.h) - (safeBox.y + safeBox.h),
+      };
+      for (const edge of ['left', 'right', 'top', 'bottom']) {
+        if (over[edge] > RULES.bodyFigureTolerance) {
+          push(`${img.cutout || 'image'} is ${Math.round(over[edge])}px outside the ${safeBox.w}x${safeBox.h} safe zone at the ${edge}; a body-slide figure does not bleed`);
+        }
+      }
+      continue;
+    }
+
+    // Cover: how much of the figure is off the canvas.
+    const visW = Math.max(0, Math.min(r.x + r.w, canvasBox.w) - Math.max(r.x, 0));
+    const visH = Math.max(0, Math.min(r.y + r.h, canvasBox.h) - Math.max(r.y, 0));
+    const offFrac = 1 - (visW * visH) / (r.w * r.h);
+    if (offFrac > RULES.coverBleedMaxAreaFrac + 1e-9) {
+      push(`${img.cutout || 'image'} is ${Math.round(offFrac * 100)}% off the canvas; a cover may bleed at most ${Math.round(RULES.coverBleedMaxAreaFrac * 100)}%`);
+    }
+  }
+
+  // The subject's core, from the manifest's own density map. Uses the resolved
+  // placement rather than the DOM rect so the nine zones land exactly where
+  // the composer put them.
+  if (isCover && cutout && placement) {
+    const zones = cutoutsLib.zoneRects(cutout, placement);
+    const off = zones.filter((z) => z.kind === 'dense' && (
+      z.rect.x < -RULES.figureOffCanvasTolerance ||
+      z.rect.y < -RULES.figureOffCanvasTolerance ||
+      z.rect.x + z.rect.w > canvasBox.w + RULES.figureOffCanvasTolerance ||
+      z.rect.y + z.rect.h > canvasBox.h + RULES.figureOffCanvasTolerance));
+    if (off.length) {
+      push(`${cutout.id} bleeds through its subject: dense zone(s) ${off.map((z) => z.name).join(', ')} cross the canvas edge, and a bleed takes peripheral area only`);
     }
   }
   return out;
@@ -117,7 +140,14 @@ async function review(outDir, opts = {}) {
       // Text overflow, by the shared rule.
       for (const f of textOverflowFlags(a, { canvasBox, safeBox, isCover })) flag(slide, f.rule, f.detail);
       // Layer bounds, by layer type. Runs on every slide of every deck.
-      for (const f of figureBoundsFlags(a.images, { canvasBox, subject: deck.brief.cover.subject, isCover })) flag(slide, f.rule, f.detail);
+      const figPlacement = isCover && deck.cover.figure
+        ? { x: deck.cover.figure.x, y: deck.cover.figure.y, scale: deck.cover.figure.scale, mirror: deck.cover.figure.mirror }
+        : null;
+      for (const f of figureBoundsFlags(a.images, {
+        canvasBox, safeBox, isCover,
+        cutout: figPlacement ? cutouts.byId.get(deck.cover.figure.id) : null,
+        placement: figPlacement,
+      })) flag(slide, f.rule, f.detail);
       // Floor: 24 (tokens.json size.floor).
       for (const t of a.texts) {
         if (t.fontSize < RULES.floorPx - 0.01) flag(slide, 'below-floor', `"${t.text.slice(0, 40)}" is ${t.fontSize}px, floor is ${RULES.floorPx}`);
@@ -201,12 +231,14 @@ async function review(outDir, opts = {}) {
     const types = deck.brief.slides.map((s) => s.type);
     if (types[types.length - 1] !== 'cta') flag(n, 'last-slide-cta', `last slide is ${types[types.length - 1]}`);
     let run = 1;
-    for (let i = 1; i < types.length; i++) { run = types[i] === types[i - 1] ? run + 1 : 1; if (run > RULES.sameComponentRunMax) flag(i + 2, 'component-run', `${types[i]} ${run} times in a row`); }
+    for (let i = 1; i < types.length; i++) { run = types[i] === types[i - 1] ? run + 1 : 1; if (run > RULES.sameComponentRunMax) flag(i + 2, 'component-run', `${types[i]} ${run} times in a row`, 'warn'); }
     // Sources: warned at render time, a hard gate at publish time (README rule 2: every number traces to a source, or the deck blocks).
     const publishBlocks = [];
     deck.brief.slides.forEach((s, i) => {
       if (!s.source) return;
-      if (s.source.crossChecked === false) { flag(i + 2, 'source-unchecked', `${s.type} figure "${s.source.figure}" not cross-checked`, opts.publish ? 'block' : 'warn'); publishBlocks.push({ slide: i + 2, rule: 'source-unchecked', figure: s.source.figure }); }
+      // The two-source cross-check is retired: one primary source is enough,
+      // so there is no longer any such thing as an "unchecked" row. A source
+      // row still has to point somewhere, which is the next line.
       if (!s.source.url) { flag(i + 2, 'source-untraced', `${s.type} figure "${s.source.figure}" has no URL`, opts.publish ? 'block' : 'warn'); publishBlocks.push({ slide: i + 2, rule: 'source-untraced', figure: s.source.figure }); }
     });
 

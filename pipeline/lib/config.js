@@ -137,6 +137,10 @@ function loadConfig(root, brand) {
     pickMax: cfg.number('Run settings', 'pick_max', { fallback: '8' }),
     blockRateRuns: cfg.number('Run settings', 'block_rate_runs', { fallback: '7' }),
     sourceabilityPrecheck: cfg.bool('Run settings', 'sourceability_precheck', { fallback: 'yes' }),
+    // Angle preference per series, from the table under Run settings. Missing
+    // or unreadable means no steer, which is the safe default: pick judges the
+    // idea on its merits rather than on a preference nobody wrote down.
+    anglePreference: parseAnglePreference(cfg.section('Run settings').rows),
     deckMaxAgeDays: cfg.number('Run settings', 'deck_max_age'),
     stateDb: cfg.value('Run settings', 'State database'),
     outDir: cfg.value('Run settings', 'Output directory'),
@@ -197,4 +201,21 @@ function loadConfig(root, brand) {
   return cfg;
 }
 
-module.exports = { loadConfig, parseMarkdownSettings, slug };
+// The "| Series | Angle preference |" table under Run settings, as rows, into
+// { 'Running 101': 'qualitative', ... }. Rows that are not one of the three
+// known preferences are skipped rather than guessed at: an unreadable
+// preference is no preference, which is the harmless default.
+const ANGLE_PREFERENCES = ['qualitative', 'figure-backed', 'none'];
+function parseAnglePreference(rows) {
+  const out = {};
+  for (const cells of rows || []) {
+    if (!Array.isArray(cells) || cells.length < 2) continue;
+    const series = String(cells[0] || '').trim();
+    const pref = String(cells[1] || '').trim().toLowerCase();
+    if (!series || !ANGLE_PREFERENCES.includes(pref)) continue;
+    out[series] = pref;
+  }
+  return out;
+}
+
+module.exports = { loadConfig, parseMarkdownSettings, parseAnglePreference, ANGLE_PREFERENCES, slug };

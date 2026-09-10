@@ -25,9 +25,28 @@ module.exports = {
   // bottom-deep a fifth of the height). Anything past that, or any bleed at all
   // on a subject that is not detail, is the placement search going wrong.
   textOffCanvasTolerance: 0.5,   // px, antialiasing only
-  detailBleedMaxFracX: 0.25,     // cover.js hx: left-bleed / right-bleed
-  detailBleedMaxFracY: 0.20,     // cover.js vy: bottom-deep
+  // A cover figure MAY bleed off the canvas: cover-grammar calls it "a
+  // deliberate bleed" and defines the detail type as "large and bleeding off
+  // an edge". Two ceilings keep a broken placement from passing as one:
+  //
+  //  - area: 25% is the largest single-edge bleed the composer can produce on
+  //    purpose. cover.js's anchor table puts exactly a quarter of the width
+  //    past a side (left-bleed / right-bleed) and a fifth of the height past
+  //    the bottom (bottom-deep); past that nothing composed it, it escaped.
+  //  - subject: no zone the manifest marks `dense` may leave the canvas.
+  //    `dense` is the manifest's own record of where the figure's mass is, so
+  //    this is the grammar's "legs, hands, shoes" bleed — peripheral area goes
+  //    off the edge, the runner's core does not.
+  //
+  // Both are needed. Area alone passes a 20% crop straight through a figure's
+  // middle; the dense rule alone passes a figure mostly off-canvas whose core
+  // happens to stay on it.
+  coverBleedMaxAreaFrac: 0.25,
   figureOffCanvasTolerance: 1,   // px, rounding between placement and layout
+  // A body-slide figure has no bleed at all: it sits inside the 888x1158 type
+  // safe zone, sub-pixel rounding aside. Mid-deck slides are read, not stopped
+  // at, and a figure crossing the margin there is a layout fault every time.
+  bodyFigureTolerance: 0.5,
 
   // --- defaults (no number in the files) -----------------------------------
   edgeGlyphMaxCoverage: 0.02, // "never its first or last letters": tolerance for antialiasing at the glyph box edge

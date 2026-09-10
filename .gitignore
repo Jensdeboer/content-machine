@@ -15,3 +15,7 @@ pipeline/state.stub.db-wal
 pipeline/state.stub.db-shm
 
 pipeline/out/
+
+# Raw source photography before ingest (pipeline/ingest-assets.js).
+# Large, unprocessed, and licensed from third parties: it stays on the box.
+brands/*/raw/

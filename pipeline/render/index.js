@@ -83,16 +83,21 @@ function lintCopy(brief) {
 }
 
 // Structure rules from deck-rules.md.
+const softStructure = [];
 function checkStructure(brief) {
   const blocks = [];
+  softStructure.length = 0;
   const n = brief.slides.length + 1;
   if (!RULES.slideCount.includes(n)) blocks.push({ rule: 'slide-count', detail: `${n} slides; decks are ${RULES.slideCount.join(' or ')}` });
   const last = brief.slides[brief.slides.length - 1];
   if (!last || last.type !== 'cta') blocks.push({ rule: 'last-slide-cta', detail: `last slide is ${last ? last.type : 'missing'}` });
+  // Component runs are a variety rule, not a correctness one: three of the
+  // same component in a row reads monotonous, it does not read broken. It is
+  // reported and never blocks, like the other variety rules.
   let run = 1;
   for (let i = 1; i < brief.slides.length; i++) {
     run = brief.slides[i].type === brief.slides[i - 1].type ? run + 1 : 1;
-    if (run > RULES.sameComponentRunMax) blocks.push({ rule: 'component-run', detail: `${brief.slides[i].type} appears ${run} times in a row at slide ${i + 2}` });
+    if (run > RULES.sameComponentRunMax) softStructure.push({ ok: false, rule: 'component-run', detail: `${brief.slides[i].type} appears ${run} times in a row at slide ${i + 2}` });
   }
   brief.slides.forEach((s, i) => {
     const showsFigure = s.type === 'stat' || s.type === 'metrics-table' || s.type === 'chart' || s.type === 'progress-scale' ||
@@ -143,18 +148,39 @@ async function main() {
   const treatmentCheck = history.checkTreatment(rows, treatment.id);
 
   // --- rules before anything is rendered -----------------------------------
+  //
+  // Two kinds of rule, and they are not enforced the same way.
+  //
+  // CORRECTNESS is a gate: copy that breaks banned.md, a deck of the wrong
+  // shape, a figure with no source row, type or a layer out of bounds. Those
+  // block, because shipping them would be wrong.
+  //
+  // VARIETY is a preference: ground alternation, the subject mix, cutout and
+  // position rotation, headline mode runs, kicker spacing, caption treatment
+  // and deck shape. Those exist so a week of decks does not look like one
+  // deck seven times — a good reason to choose differently, never a reason to
+  // throw away a deck that is otherwise correct. They are recorded on the
+  // deck (historyChecks) and logged, and they steer selection wherever the
+  // composer still has a choice to make. A deck is never blocked by one.
   const blocks = [...lintCopy(brief), ...checkStructure(brief)];
+  const preferences = [...softStructure];
+  const prefer = (check) => { if (check && !check.ok) preferences.push(check); return check; };
+
   const groundCheck = history.checkGround(rows, brief.cover.ground || (rows.length ? 'white' : 'white'));
-  if (!brief.cover.ground) {
-    brief.cover.ground = rows.length ? groundCheck.required : 'white';
-  } else if (!groundCheck.ok) blocks.push(groundCheck);
-  const mix = history.checkMix(rows, brief.cover.subject); if (!mix.ok) blocks.push(mix);
-  const shape = history.checkShape(rows, brief.shape); if (!shape.ok) blocks.push(shape);
-  const mode = history.checkMode(rows, brief.cover.mode); if (!mode.ok) blocks.push(mode);
+  if (!brief.cover.ground) brief.cover.ground = rows.length ? groundCheck.required : 'white';
+  else prefer(groundCheck);
+  const mix = prefer(history.checkMix(rows, brief.cover.subject));
+  const shape = prefer(history.checkShape(rows, brief.shape));
+  const mode = prefer(history.checkMode(rows, brief.cover.mode));
   if (brief.cover.figure && brief.cover.figure.cutout) {
-    const cr = history.checkCutout(rows, brief.cover.figure.cutout); if (!cr.ok) blocks.push(cr);
+    prefer(history.checkCutout(rows, brief.cover.figure.cutout));
     const cutout = lib.byId.get(brief.cover.figure.cutout);
-    if (cutout && !cutouts.allowedOnGround(cutout, brief.cover.ground)) blocks.push({ rule: 'excluded-ground', detail: `${cutout.id} is not allowed on ${brief.cover.ground} (manifest ground: ${cutout.ground})` });
+    // Ground exclusion is not a preference: the manifest says the cutout does
+    // not read on this ground, so the composer picks another one instead.
+    if (cutout && !cutouts.allowedOnGround(cutout, brief.cover.ground)) {
+      console.log(`cover: brief names ${cutout.id}, which the manifest excludes on ${brief.cover.ground}; choosing from the eligible pool instead`);
+      delete brief.cover.figure.cutout;
+    }
   }
   if (blocks.length) throw new Blocked(blocks);
 
@@ -176,23 +202,80 @@ async function main() {
       if (e.blocks) throw new Blocked(e.blocks.map((x) => ({ ...x, stage: 'cover' })));
       throw e;
     }
-    const posCheck = history.checkPosition(rows, cover.resolved.position);
-    if (!posCheck.ok) throw new Blocked([posCheck]);
-    if (cover.resolved.figure) {
-      const cr = history.checkCutout(rows, cover.resolved.figure.id);
-      if (!cr.ok) throw new Blocked([cr]);
-    }
-    const kickerCheck = history.checkKicker(rows, !!cover.resolved.kicker);
-    if (!kickerCheck.ok) throw new Blocked([kickerCheck]);
+    // The composer already preferred a fresh position, cutout and kicker where
+    // it had the choice. What it settled on is recorded either way: a repeat
+    // means the pool left nothing fresher, which is a fact about the library,
+    // not a fault in the deck.
+    const posCheck = prefer(history.checkPosition(rows, cover.resolved.position));
+    if (cover.resolved.figure) prefer(history.checkCutout(rows, cover.resolved.figure.id));
+    const kickerCheck = prefer(history.checkKicker(rows, !!cover.resolved.kicker));
 
-    // Body slides.
-    const total = brief.slides.length + 1;
-    const pages = [{ html: cover.html, type: 'cover' }];
-    brief.slides.forEach((slide, i) => {
+    // Body slides, each MEASURED before it is committed.
+    //
+    // A body slide used to be emitted from flow layout and never looked at
+    // until qa. Copy longer than the content area then pushed the footer down
+    // and out of the safe zone — the recurring "SWIPE →" overflow — and the
+    // deck died for a layout nothing had checked. Now the slide is laid out,
+    // measured, and re-set one rung tighter (lib/treatments.js COMPACTION)
+    // until the content fits the space it has, the same way the cover steps
+    // its headline down until it fits the measure.
+    const compactions = [];
+    const buildAt = (slide, i, level) => {
       const data = slide.type === 'cta' ? { ...slide, ...CTA_DEFAULTS } : slide;
-      const built = buildSlide(data, { ctx });
-      pages.push({ html: buildPage({ slideIndex: i + 2, slideType: slide.type, canvasInner: built.canvasInner, canvasStyle: built.canvasStyle }), type: slide.type });
-    });
+      const h = treatmentsLib.helpers(treatment, tokens, level);
+      const built = buildSlide(data, { ctx, h });
+      return buildPage({ slideIndex: i + 2, slideType: slide.type, canvasInner: built.canvasInner, canvasStyle: built.canvasStyle });
+    };
+    // What "fits" means, measured the way the failure actually shows up.
+    //
+    // The content div is `flex: 1`, so it GROWS to hold its child: comparing
+    // the child's height to it is vacuous, it always passes. What overflowing
+    // copy really does is push the footer down — and the footer's designed
+    // band is the last 96px of the safe zone, so the test is whether the
+    // footer still ends inside it. That is the same thing qa flags when it
+    // says "SWIPE → leaves the safe zone", checked before the deck is written
+    // rather than after.
+    const designedContentH = tokens.canvas.height - 2 * tokens.margin - tokens.footerHeight;
+    const safeBottom = tokens.safe.y + tokens.safe.height;
+    const contentFits = async (html) => {
+      await browser.show(page, html);
+      return page.evaluate(({ maxH, bottom }) => {
+        const cv = document.querySelector('[data-role="canvas"]');
+        const content = cv.querySelector('[data-role="content"]');
+        if (!content) return { fits: true, have: 0, maxH };
+        const base = cv.getBoundingClientRect();
+        const foot = cv.querySelector('[data-role="footer"],[data-role="cta-footer"]');
+        const have = content.getBoundingClientRect().height;
+        const footBottom = foot ? foot.getBoundingClientRect().bottom - base.top : 0;
+        return {
+          fits: have <= maxH + 0.5 && (!foot || footBottom <= bottom + 0.5),
+          have: Math.round(have), maxH, footBottom: Math.round(footBottom),
+        };
+      }, { maxH: designedContentH, bottom: safeBottom });
+    };
+    const pages = [{ html: cover.html, type: 'cover' }];
+    for (let i = 0; i < brief.slides.length; i++) {
+      const slide = brief.slides[i];
+      let html = null, level = 0, last = null;
+      for (; level < treatmentsLib.COMPACTION.length; level++) {
+        html = buildAt(slide, i, level);
+        last = await contentFits(html);
+        if (last.fits) break;
+      }
+      if (!last.fits) {
+        // Every rung tried and the copy still does not fit: that is too much
+        // copy, not a layout that needs another notch, and it says so.
+        throw new Blocked([{
+          rule: 'slide-does-not-fit',
+          detail: `slide ${i + 2} (${slide.type}) still overflows at the tightest setting: ${last.have}px of content in ${last.maxH}px, footer ending at ${last.footBottom}. The copy is over what the component holds — see component-capacity.json.`,
+        }]);
+      }
+      if (level > 0) compactions.push({ slide: i + 2, type: slide.type, level });
+      pages.push({ html, type: slide.type });
+    }
+    if (compactions.length) {
+      console.log(`fit: ${compactions.map((c) => `slide ${c.slide} (${c.type}) tightened to level ${c.level}`).join(', ')}`);
+    }
 
     // Screenshot each slide at deviceScaleFactor 2.
     const files = [];
@@ -214,13 +297,18 @@ async function main() {
     const deck = {
       deckId: brief.deckId, date: brief.date, rendered: new Date().toISOString(), brand: path.relative(ROOT, args.brand),
       output: { width: tokens.canvas.width * 2, height: tokens.canvas.height * 2, files: files.map((f) => path.basename(f)) },
-      brief, cover: cover.resolved, historyChecks: { ground: groundCheck, mix, mode, position: posCheck, kicker: kickerCheck, treatment: treatmentCheck, shape }, postedRow,
+      brief, cover: cover.resolved, compactions, historyChecks: { ground: groundCheck, mix, mode, position: posCheck, kicker: kickerCheck, treatment: treatmentCheck, shape }, unmetPreferences: preferences, postedRow,
     };
     fs.writeFileSync(path.join(outDir, 'deck.json'), JSON.stringify(deck, null, 2));
     console.log(`rendered ${files.length} slides to ${path.relative(ROOT, outDir)}/ (${tokens.canvas.width * 2}x${tokens.canvas.height * 2})`);
     console.log(`caption treatment: ${treatment.id} (${treatmentCheck.detail})`);
     console.log(`cover: ${brief.cover.subject} · ${brief.cover.mode} · ${brief.cover.ground} · size ${cover.resolved.sizeStep}` +
       (cover.resolved.figure ? ` · ${cover.resolved.figure.id} @ ${cover.resolved.figure.x},${cover.resolved.figure.y} ×${cover.resolved.figure.scale}${cover.resolved.figure.mirror ? ' mirrored' : ''} · position ${cover.resolved.position}` : ''));
+
+    if (preferences.length) {
+      console.log(`variety: ${preferences.length} preference(s) the pool could not satisfy tonight (recorded, not blocking):`);
+      for (const p of preferences) console.log(`  [${p.rule}] ${p.detail}`);
+    }
 
     if (args.qa) {
       const review = await qa.review(outDir, { brandDir: args.brand, page, tokens, cutouts: lib, history: rows });

@@ -27,6 +27,7 @@ const { callModel, ModelError } = require('./models');
 const { validate } = require('./render/lib/schema-check');
 const capacity = require('./render/capacity');
 const renderHistory = require('./render/lib/history');
+const evidenceLib = require('./lib/evidence');
 const preview = require('./lib/preview');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -309,6 +310,41 @@ async function stageSourceCheck({ cfg, brain, ideas, evidence, log: logFn = log,
   return { kept, dropped, checked: withFigures.length, skipped: ideas.length - withFigures.length };
 }
 
+// What kind of claim each series wants (config.md, Angle preference). PICK
+// used to reach for a number on every idea, which is how a Mindset deck ended
+// up resting on a coaching rule of thumb that verify then could not source.
+// Some series are not about numbers at all; one is, and should get the ideas
+// where tonight's scan already turned up a paper with a chart in it.
+const CHART_WORDS = /\b(figure|fig\.|table|chart|plot|graph|data|trial|randomi[sz]ed|cohort|meta-analysis)\b/i;
+
+function anglePreferenceLines(cfg, scanned) {
+  const prefs = (cfg.run && cfg.run.anglePreference) || {};
+  const qualitative = Object.entries(prefs).filter(([, v]) => v === 'qualitative').map(([k]) => k);
+  const figureBacked = Object.entries(prefs).filter(([, v]) => v === 'figure-backed').map(([k]) => k);
+  if (!qualitative.length && !figureBacked.length) return [];
+  const out = ['', '--- what kind of claim each series wants (config.md) ---'];
+  if (qualitative.length) {
+    out.push(`- ${qualitative.join(' and ')}: QUALITATIVE. Do not reach for a number. These teach a way of running,`,
+      '  and an idea is not stronger for carrying a figure. Prescriptive advice ("keep most of it easy") is',
+      '  welcome and needs no source; leave `figures` empty unless the number IS the idea.');
+  }
+  if (figureBacked.length) {
+    const withCharts = (scanned || [])
+      .filter((x) => x.tier === 'evidence-source' && CHART_WORDS.test(`${x.title || ''} ${x.reason || ''}`))
+      .slice(0, 12).map((x) => ({ title: x.title, url: x.url, feed: x.feed }));
+    out.push(`- ${figureBacked.join(' and ')}: FIGURE-BACKED. Prefer an idea resting on a real finding from a paper,`,
+      '  and put the number in `figures` so verify can trace it.');
+    if (withCharts.length) {
+      out.push('  Items from tonight\'s evidence pull that look like they carry a chart or table:',
+        `  ${JSON.stringify(withCharts, null, 1).replace(/\n/g, '\n  ')}`);
+    } else {
+      out.push('  Tonight\'s evidence pull turned up nothing that obviously carries a chart, so do not force one.');
+    }
+  }
+  out.push('- Every other series: no preference, judge the idea on its merits.', '--- end ---');
+  return out;
+}
+
 async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, evidence = [], count = cfg.run.ideasPerRun, need = count }) {
   const recent = within(brain.posted, cfg.run.topicWindowDays);
   const recentSlugs = new Set(recent.map((r) => r.topic).filter(Boolean));
@@ -330,6 +366,7 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, evide
     '',
     `Choose ${count} ideas.`,
     '- Weight the mix by the series weights in series.md, and respect its rotation rule.',
+    ...anglePreferenceLines(cfg, scanned),
     '- Every idea gets a kebab-case topic slug that names the subject, not the headline.',
     '- An idea may come from a scanned item or from the evergreen reserve in series.md.',
     '- Evidence-source items may anchor a figure. Idea-source items (Reddit) tell you what people are confused about and may NEVER be cited as evidence.',
@@ -453,63 +490,205 @@ async function stagePick({ cfg, brain, state, runId, tg, summary, scanned, evide
 }
 
 // --------------------------------------------------------------------------
-// 3. VERIFY — every figure that will appear on a slide gets a primary source.
-//    No source means the idea is blocked: not softened, not carried to
-//    tomorrow, not rewritten to avoid the number.
+// 3. VERIFY — a CLASSIFIER, not a gate.
+//
+// It used to block any deck whose figures could not each be traced to a
+// primary source with a second source agreeing. That refused a great many
+// true decks: a prescriptive number ("keep 80% of volume easy") has no study
+// behind it because it is advice, not a measurement, and a real finding from
+// one good paper was refused for want of a second paper repeating it.
+//
+// Every claim now lands in one of four tiers, and only one of them blocks:
+//
+//   FIGURE-BACKED   a specific empirical number, a primary source that is open
+//                   access under a reusable licence, and a chart, plot or
+//                   table in that paper that is about this claim. The figure
+//                   is recorded against the claim; nothing renders it yet.
+//   SOURCED         a specific empirical number with one primary source. No
+//                   usable figure, or not open access. Allowed.
+//   COMMON KNOWLEDGE  no specific empirical number. Qualitative claims, and
+//                   prescriptive numbers that are coaching convention rather
+//                   than a finding. Allowed with no source.
+//   FABRICATED      a specific empirical number with no source, or one that
+//                   contradicts the source it cites. THE ONLY BLOCKING TIER.
+//
+// The model classifies and names its source. lib/evidence.js then CHECKS the
+// figure-backed half against Europe PMC — licence, open access, and whether
+// the paper really contains a figure about this claim — and demotes to
+// SOURCED when any of that does not hold, so the tier is verified rather
+// than asserted.
 // --------------------------------------------------------------------------
+const TIERS = ['figure-backed', 'sourced', 'common-knowledge', 'fabricated'];
+
 const VERIFY_SHAPE = `{
-  "blocked": false,
-  "blockReason": null,
-  "sources": [
+  "claims": [
     {
-      "figure": "the number as it will appear on the slide",
-      "quote": "the exact sentence or table cell from the source",
-      "url": "https://...",
-      "publisher": "journal or organisation",
-      "retrieved": "YYYY-MM-DD",
-      "crossChecked": true,
-      "headline": true
+      "text": "the claim as the deck will state it",
+      "figure": "the number as it will appear on the slide, or null if the claim carries no number",
+      "tier": "figure-backed | sourced | common-knowledge | fabricated",
+      "why": "one line: why this tier and not the next one up",
+      "source": {
+        "quote": "the exact sentence or table cell that states the figure",
+        "url": "https://...",
+        "publisher": "journal or organisation",
+        "firstAuthor": "surname only, e.g. Matomäki",
+        "year": 2023,
+        "n": "participants, as a number, or null",
+        "doi": "10.xxxx/... if known, else null",
+        "pmcid": "PMCxxxxxxx if known, else null",
+        "retrieved": "YYYY-MM-DD"
+      }
     }
   ]
 }`;
 
-async function stageVerify({ cfg, brain, idea, evidence }) {
+async function stageVerify({ cfg, brain, idea, evidence, log: logFn = log, call = callModel, evidenceCheck = evidenceLib.figureEvidence }) {
   const prompt = [
-    'Find a primary source for every figure this deck will show.',
+    'Classify every claim this deck will make. You are not deciding whether the deck may run.',
+    'You are deciding what kind of claim each one is, and finding a source where a source is owed.',
     '',
     '--- sources.md ---', brain.files.sources, '--- end ---',
     '',
-    'Rules that decide the answer:',
-    '- Every figure needs a row: exact quote or table cell, url, publisher, retrieval date, cross-checked yes/no.',
-    '- A headline figure is always cross-checked, meaning a second primary source states the same figure.',
+    'The four tiers:',
+    '',
+    'FIGURE-BACKED — a specific empirical number, traced to a primary source that is open access,',
+    '  where that paper also contains a chart, plot or table about this claim. Give the doi or pmcid',
+    '  whenever you can: it is checked against Europe PMC, and a claim that cannot be checked is',
+    '  recorded as SOURCED instead. Never guess an identifier.',
+    '',
+    'SOURCED — a specific empirical number with one primary source. One good source is enough;',
+    '  a second source stating the same number is NOT required. Use this tier when the source is',
+    '  paywalled, has no usable figure, or is an organisation rather than a paper.',
+    '',
+    'COMMON KNOWLEDGE — no specific empirical number, so nothing to source. Two kinds:',
+    '  - qualitative claims: "easy runs should feel easy", "consistency beats intensity".',
+    '  - PRESCRIPTIVE numbers: advice about what to do, which is coaching convention rather than a',
+    '    research finding. "Run 5-6 days a week", "keep 80% of volume easy", "no new shoes on race',
+    '    day", "two rest days" are all common knowledge.',
+    '  The test is what the number is DOING. Is it describing the world, which is empirical and owes',
+    '  a source ("runners drifted 7.7% over three hours")? Or is it telling the reader what to do,',
+    '  which is prescription and owes none ("keep 80% of it easy")? A number being present does not',
+    '  make a claim empirical.',
+    '',
+    'FABRICATED — a specific empirical number with no source you could find, OR a number that',
+    '  contradicts what its own cited source actually says. Read the source before you agree with it:',
+    '  a paper reporting averaged multi-variable drift in sedentary cyclists does not support a claim',
+    '  about heart-rate drift in trained runners, and calling that SOURCED would be the error this',
+    '  tier exists to catch. This is the only tier that stops a deck.',
+    '',
+    'Rules:',
     '- Idea-sources (Reddit) are never evidence, whatever they say.',
-    '- If a figure cannot be traced to a real url and a retrieval date, do not invent one. Set blocked true and say which figure failed.',
-    '- A deck that shows no figures at all is not blocked: return an empty sources list.',
+    '- Never invent a url, a doi, a quote or a retrieval date. A claim you cannot source is FABRICATED,',
+    '  or COMMON KNOWLEDGE if it never needed a source in the first place.',
+    '- A deck making no empirical claims at all is perfectly fine: return only common-knowledge claims.',
     '',
     `Today is ${today()}.`,
     '',
     'The idea:',
     JSON.stringify({ topic: idea.topic, series: idea.series, angle: idea.angle, figures: idea.figures || [] }, null, 1),
     '',
-    'Evidence-source items already pulled tonight (use these first; they are real and dated):',
-    JSON.stringify(evidence.slice(0, 40).map((e) => ({ title: e.title, url: e.url, published: e.published, feed: e.feed })), null, 1),
+    'Evidence-source items already pulled tonight (real and dated; use these first):',
+    JSON.stringify((evidence || []).slice(0, 40).map((e) => ({ title: e.title, url: e.url, published: e.published, feed: e.feed })), null, 1),
   ].join('\n');
 
-  const out = await callModel({
-    stage: 'verify', prompt, schema: VERIFY_SHAPE, config: cfg, log,
+  const out = await call({
+    stage: 'verify', prompt, schema: VERIFY_SHAPE, config: cfg, log: logFn,
     allowedTools: cfg.models.verifyWebTools ? ['WebSearch', 'WebFetch'] : undefined,
   });
 
-  if (out.blocked) throw new Blocked(out.blockReason || 'a figure could not be traced to a primary source');
+  const raw = Array.isArray(out.claims) ? out.claims : [];
+  const claims = [];
+  for (const c of raw) {
+    if (!c || !c.text) continue;
+    const tier = TIERS.includes(String(c.tier || '').toLowerCase()) ? String(c.tier).toLowerCase() : 'fabricated';
+    const src = c.source && typeof c.source === 'object' ? c.source : null;
+    const claim = { text: String(c.text), figure: c.figure || null, tier, why: c.why || null, source: src, evidence: null };
 
-  const sources = Array.isArray(out.sources) ? out.sources : [];
-  for (const s of sources) {
-    if (!s.url || !/^https?:\/\//.test(s.url)) throw new Blocked(`figure "${s.figure}" has no url; sources.md does not accept a figure that cannot be traced`);
-    if (!s.retrieved) throw new Blocked(`figure "${s.figure}" has no retrieval date`);
-    if (!s.quote) throw new Blocked(`figure "${s.figure}" has no exact quote or table cell`);
-    if (s.headline && !s.crossChecked) throw new Blocked(`headline figure "${s.figure}" is not cross-checked; sources.md requires it`);
+    // A claim that owes a source and has not got a usable one is fabricated,
+    // whatever it was labelled: the label is the model's, the url is checkable.
+    if ((tier === 'sourced' || tier === 'figure-backed')) {
+      const bad = !src ? 'no source object'
+        : !src.url || !/^https?:\/\//.test(src.url) ? 'no url'
+          : !src.quote ? 'no quote from the source'
+            : !src.retrieved ? 'no retrieval date' : null;
+      if (bad) {
+        claim.tier = 'fabricated';
+        claim.why = `${claim.why || ''} [demoted: ${bad}]`.trim();
+        claims.push(claim);
+        continue;
+      }
+    }
+
+    // The figure-backed half, checked against Europe PMC rather than believed.
+    if (claim.tier === 'figure-backed') {
+      const ref = { doi: src.doi || null, pmcid: src.pmcid || null, title: src.title || null };
+      let ev;
+      try { ev = await evidenceCheck(claim.text, ref); }
+      catch (e) { ev = { ok: false, why: `Europe PMC check failed (${e.message})` }; }
+      if (ev.ok) {
+        claim.evidence = {
+          pmcid: ev.paper.pmcid, licence: ev.paper.licence, journal: ev.paper.journal,
+          firstAuthor: ev.paper.firstAuthor || src.firstAuthor || null,
+          year: ev.paper.year || src.year || null,
+          n: src.n === undefined ? null : src.n,
+          figureLabel: ev.figure.label, figureCaption: ev.figure.caption,
+          figureFile: ev.figure.href, figureUrl: ev.figure.url, relevance: ev.figure.score,
+          // Not fetched: every documented image route is gated or dead from
+          // this host (see lib/evidence.js). Nothing renders a figure yet, so
+          // the reference is enough until the component exists.
+          imagePath: null, imagePathWhy: 'image bytes are not fetchable from this host; see lib/evidence.js',
+        };
+      } else {
+        claim.tier = 'sourced';
+        claim.why = `${claim.why || ''} [not figure-backed: ${ev.why}]`.trim();
+      }
+    }
+    claims.push(claim);
   }
-  return sources;
+
+  const fabricated = claims.filter((c) => c.tier === 'fabricated');
+  if (fabricated.length) {
+    throw new Blocked(`fabricated claim(s): ${fabricated.map((c) => `"${c.figure || c.text}" — ${c.why || 'no source found'}`).join(' | ')}`);
+  }
+
+  const counts = TIERS.reduce((a, t) => ({ ...a, [t]: claims.filter((c) => c.tier === t).length }), {});
+  logFn(`  verify: ${claims.length} claim(s) — ${TIERS.filter((t) => counts[t]).map((t) => `${counts[t]} ${t}`).join(', ') || 'none'}`);
+
+  // The shape the render path still expects. On-slide source credit is
+  // unchanged for now; cross-check is gone, so nothing claims one.
+  const sources = claims.filter((c) => c.source && c.tier !== 'common-knowledge').map((c) => ({
+    figure: c.figure || c.text,
+    quote: c.source.quote,
+    url: c.source.url,
+    publisher: c.source.publisher || (c.evidence && c.evidence.journal) || '',
+    retrieved: c.source.retrieved,
+    crossChecked: true,   // the two-source rule is retired; nothing is "unchecked" any more
+    headline: false,
+    tier: c.tier,
+    firstAuthor: (c.evidence && c.evidence.firstAuthor) || c.source.firstAuthor || null,
+    year: (c.evidence && c.evidence.year) || c.source.year || null,
+    evidence: c.evidence,
+  }));
+  return { claims, sources, counts };
+}
+
+// "Source: Matomäki et al. 2023" — one line at the end of the Instagram
+// caption for a deck carrying sourced or figure-backed claims. TikTok is
+// untouched: its caption carries search phrases and nothing else.
+function sourceLine(sources) {
+  const seen = new Set();
+  const names = [];
+  for (const s of sources || []) {
+    if (!s || s.tier === 'common-knowledge') continue;
+    const author = s.firstAuthor && String(s.firstAuthor).trim();
+    if (!author) continue;
+    const surname = author.split(/\s+/)[0].replace(/,$/, '');
+    const label = s.year ? `${surname} et al. ${s.year}` : `${surname} et al.`;
+    if (seen.has(label)) continue;
+    seen.add(label);
+    names.push(label);
+  }
+  return names.length ? `Source: ${names.join(', ')}` : '';
 }
 
 // --------------------------------------------------------------------------
@@ -612,7 +791,7 @@ function varietyLines(rows) {
   ];
 }
 
-async function stageWrite({ cfg, brain, idea, sources, history = [], previousErrors, attempt = 1 }) {
+async function stageWrite({ cfg, brain, idea, sources, claims = [], history = [], previousErrors, attempt = 1 }) {
   const budgets = CAPACITY ? [
     '',
     '--- how much copy each component holds ---',
@@ -639,8 +818,20 @@ async function stageWrite({ cfg, brain, idea, sources, history = [], previousErr
     'The idea:',
     JSON.stringify({ topic: idea.topic, series: idea.series, angle: idea.angle }, null, 1),
     '',
-    'The verified sources. Every figure you put on a slide must be one of these, and the slide carries its source row:',
-    JSON.stringify(sources, null, 1),
+    'The verified sources. A figure on a slide that carries a source row must be one of these:',
+    JSON.stringify(sources.map((s) => ({ figure: s.figure, quote: s.quote, url: s.url, publisher: s.publisher, retrieved: s.retrieved, tier: s.tier })), null, 1),
+    ...(claims.filter((c) => c.tier === 'common-knowledge').length ? [
+      '',
+      'These claims are COMMON KNOWLEDGE: qualitative, or a prescriptive number that is coaching',
+      'convention rather than a measured finding. They have no source and need none:',
+      JSON.stringify(claims.filter((c) => c.tier === 'common-knowledge').map((c) => ({ claim: c.text, figure: c.figure })), null, 1),
+      '',
+      'A common-knowledge number must NOT go on a component that renders a source row — stat, chart,',
+      'metrics-table, progress-scale, or a compare column carrying a value. Those components promise the',
+      'reader a traceable figure and the renderer refuses one without a source. Say it in prose instead:',
+      'an explainer, a pull-statement or a checklist line carries "keep most of the week easy" perfectly',
+      'well. Only the sourced figures above may sit on a component with a source row.',
+    ] : []),
     '',
     'Requirements:',
     '- series is the uppercase series label, e.g. "RUNNING 101".',
@@ -675,7 +866,7 @@ async function stageWrite({ cfg, brain, idea, sources, history = [], previousErr
   if (over.length && attempt === 1) {
     log(`  write: ${over.length} field(s) over budget, rewriting once`);
     const detail = over.map((o) => `${o.where} (${o.component}.${o.field}) is ${o.chars} characters; the budget is ${o.budget}`).join('\n');
-    return stageWrite({ cfg, brain, idea, sources, history, attempt: 2, previousErrors: `The copy does not fit the components:\n${detail}\nCut these to the budget. Everything else in the deck stays as it is.` });
+    return stageWrite({ cfg, brain, idea, sources, claims, history, attempt: 2, previousErrors: `The copy does not fit the components:\n${detail}\nCut these to the budget. Everything else in the deck stays as it is.` });
   }
   const captions = { ...(out.captions || {}) };
   captions.hashtags = cfg.captions.hashtags ? normaliseHashtags(captions.hashtags) : [];
@@ -711,6 +902,122 @@ function nextDeckKey(prefix, state, brain) {
     .filter((n) => Number.isFinite(n));
   const next = (nums.length ? Math.max(...nums) : 0) + 1;
   return `${prefix}-${String(next).padStart(2, '0')}`;
+}
+
+// --------------------------------------------------------------------------
+// One idea, all the way through: VERIFY, WRITE, RENDER, QA, and the state and
+// Telegram writes that go with each outcome. The nightly loops over it, and
+// scripts/recover-deck.js drives it for a single hand-authored idea — one
+// implementation, so a recovered deck is held to exactly the checks a nightly
+// deck is, with no path that skips verify or qa. `deckKeyOverride` lets a
+// caller pin the key; otherwise the next free one is minted as usual.
+// --------------------------------------------------------------------------
+async function processIdea({ cfg, brand, brain, state, runId, tg, summary, idea, evidence, deckKeyOverride = null }) {
+  const briefId = state.addBrief(runId, brand, { topic: idea.topic, series: idea.series, angle: idea.angle, score: idea.score, status: 'picked' });
+  summary.briefs++;
+  const deckKey = deckKeyOverride || nextDeckKey(cfg.run.deckKeyPrefix, state, brain);
+  const outDir = path.join(ROOT, cfg.run.outDir);
+  const deckDir = path.join(outDir, deckKey);
+
+  const park = async (status, reason) => {
+    state.updateBrief(briefId, { status, reason });
+    state.addDeck(runId, briefId, { deckKey, topic: idea.topic, status, reason, outDir: deckDir });
+    summary.decks.push({ deckKey, topic: idea.topic, status, reason });
+    await tg.send(`${status === 'blocked' ? 'blocked' : 'needs attention'}: ${deckKey} (${idea.topic})\n${reason}\nThe run continued with the other decks.`);
+  };
+
+  try {
+    // 3. VERIFY
+    const verified = await stageVerify({ cfg, brain, idea, evidence });
+    const sources = verified.sources;
+    for (const s of sources) state.addSource(briefId, s);
+    state.updateBrief(briefId, { status: 'verified' });
+
+    // 4. WRITE
+    const deckHistory = renderHistory.readHistory(cfg.dir, { outDir: path.join(ROOT, cfg.run.outDir) });
+    let { brief, captions, overBudget } = await stageWrite({ cfg, brain, idea, sources, claims: verified.claims, history: deckHistory });
+    brief = { ...brief, deckId: deckKey, date: today(), topic: idea.topic };
+
+    const texts = [
+      { where: 'cover.headline', text: brief.cover && brief.cover.headline },
+      { where: 'cover.kicker', text: brief.cover && brief.cover.kicker },
+      { where: 'cover.aside', text: brief.cover && brief.cover.aside },
+      ...(brief.slides || []).flatMap((s, i) => [
+        { where: `slides[${i}].headline`, text: s.headline },
+        { where: `slides[${i}].body`, text: s.body },
+        { where: `slides[${i}].label`, text: s.label },
+        ...(s.items || []).map((it, n) => ({ where: `slides[${i}].items[${n}]`, text: it })),
+      ]),
+      { where: 'captions.instagram', text: captions.instagram },
+      { where: 'captions.tiktok', text: captions.tiktok },
+      { where: 'captions.sendLine', text: captions.sendLine },
+      // The words inside the tags face the ban list too; the # itself is
+      // the one thing banned.md allows here, so it is stripped for lint.
+      { where: 'captions.hashtags', text: captions.hashtags.map((h) => h.slice(1)).join(' ') },
+    ].filter((t) => t.text);
+    const findings = lintCopy(texts, brain.files.banned, { quotedSources: sources.map((s) => s.quote) });
+    const hard = lintBlocks(findings);
+    const soft = lintFlags(findings);
+    // Closing lines go on after lint, in this order: source, send line, then
+    // hashtags last. The source line is Instagram only — TikTok's caption
+    // carries plain search phrases and nothing else.
+    const credit = sourceLine(sources);
+    if (credit) captions.instagram = withClosingLine(captions.instagram, credit);
+    if (cfg.captions.sendLine) {
+      if (captions.sendLine) {
+        captions.instagram = withClosingLine(captions.instagram, captions.sendLine);
+      } else {
+        soft.push({ where: 'captions.sendLine', detail: 'send_line_enabled is on but write returned no usable sentence, so the caption went out without a send line' });
+      }
+    }
+    if (cfg.captions.hashtags) {
+      if (captions.hashtags.length >= HASHTAG_MIN) {
+        captions.instagram = withHashtagBlock(captions.instagram, captions.hashtags);
+      } else {
+        soft.push({ where: 'captions.hashtags', detail: `hashtags_enabled is on but write returned ${captions.hashtags.length} usable tag(s); the minimum is ${HASHTAG_MIN}, so the caption went out without a block` });
+      }
+    }
+    if (hard.length) {
+      throw new Blocked(`banned.md: ${hard.map((f) => `${f.where} ${f.rule} ${f.detail}`).join('; ')}`);
+    }
+    // Soft findings and copy still over budget after the rewrite: both are
+    // things to look at before posting, neither stops the deck.
+    const softLines = [
+      ...soft.map((f) => `${f.where}: ${f.detail}`),
+      ...(overBudget || []).map((o) => `${o.where}: ${o.chars} characters in ${o.component}.${o.field}, budget ${o.budget}`),
+    ];
+    if (softLines.length) {
+      await tg.send(`check before posting: ${deckKey} (${idea.topic})\n${softLines.join('\n')}`);
+    }
+
+    const schemaErrors = validate(BRIEF_SCHEMA, brief);
+    if (schemaErrors.length) throw new Error(`the written brief does not match brief.schema.json:\n  ${schemaErrors.slice(0, 8).join('\n  ')}`);
+    state.updateBrief(briefId, { status: 'written', brief_json: JSON.stringify(brief), captions: JSON.stringify(captions) });
+
+    // 5. RENDER
+    fs.mkdirSync(deckDir, { recursive: true });
+    const briefFile = path.join(deckDir, 'brief.json');
+    fs.writeFileSync(briefFile, JSON.stringify(brief, null, 2));
+    fs.writeFileSync(path.join(deckDir, 'captions.json'), JSON.stringify(captions, null, 2));
+    await stageRender({ cfg, briefFile, outDir });
+    state.updateBrief(briefId, { status: 'rendered' });
+
+    // 6. QA
+    const review = await stageQa({ cfg, deckDir });
+    const status = review.pass ? 'pending' : 'blocked';
+    const reason = review.pass
+      ? `${review.summary.warn} warning(s)`
+      : review.flags.filter((f) => f.severity === 'block').map((f) => `slide ${f.slide} ${f.rule}: ${f.detail}`).join('; ');
+    state.addDeck(runId, briefId, { deckKey, topic: idea.topic, status, reason, outDir: deckDir, review });
+    summary.decks.push({ deckKey, topic: idea.topic, status, reason, series: brief.series, headline: brief.cover.headline, cover: path.join(deckDir, '01.jpg'), tiers: verified.counts });
+    log(`${deckKey} (${idea.topic}): ${status} — ${reason}`);
+    if (status === 'blocked') {
+      await tg.send(`blocked by qa: ${deckKey} (${idea.topic})\n${reason}`);
+    }
+  } catch (e) {
+    if (e instanceof Blocked) await park('blocked', e.message);
+    else await park('needs_attention', `${e.name || 'error'}: ${e.message}`);
+  }
 }
 
 async function main() {
@@ -787,106 +1094,7 @@ async function main() {
 
     // 3-6, per idea, isolated.
     for (const idea of ideas) {
-      const briefId = state.addBrief(runId, brand, { topic: idea.topic, series: idea.series, angle: idea.angle, score: idea.score, status: 'picked' });
-      summary.briefs++;
-      const deckKey = nextDeckKey(cfg.run.deckKeyPrefix, state, brain);
-      const outDir = path.join(ROOT, cfg.run.outDir);
-      const deckDir = path.join(outDir, deckKey);
-
-      const park = async (status, reason) => {
-        state.updateBrief(briefId, { status, reason });
-        state.addDeck(runId, briefId, { deckKey, topic: idea.topic, status, reason, outDir: deckDir });
-        summary.decks.push({ deckKey, topic: idea.topic, status, reason });
-        await tg.send(`${status === 'blocked' ? 'blocked' : 'needs attention'}: ${deckKey} (${idea.topic})\n${reason}\nThe run continued with the other decks.`);
-      };
-
-      try {
-        // 3. VERIFY
-        const sources = await stageVerify({ cfg, brain, idea, evidence });
-        for (const s of sources) state.addSource(briefId, s);
-        state.updateBrief(briefId, { status: 'verified' });
-
-        // 4. WRITE
-        const deckHistory = renderHistory.readHistory(cfg.dir, { outDir: path.join(ROOT, cfg.run.outDir) });
-        let { brief, captions, overBudget } = await stageWrite({ cfg, brain, idea, sources, history: deckHistory });
-        brief = { ...brief, deckId: deckKey, date: today(), topic: idea.topic };
-
-        const texts = [
-          { where: 'cover.headline', text: brief.cover && brief.cover.headline },
-          { where: 'cover.kicker', text: brief.cover && brief.cover.kicker },
-          { where: 'cover.aside', text: brief.cover && brief.cover.aside },
-          ...(brief.slides || []).flatMap((s, i) => [
-            { where: `slides[${i}].headline`, text: s.headline },
-            { where: `slides[${i}].body`, text: s.body },
-            { where: `slides[${i}].label`, text: s.label },
-            ...(s.items || []).map((it, n) => ({ where: `slides[${i}].items[${n}]`, text: it })),
-          ]),
-          { where: 'captions.instagram', text: captions.instagram },
-          { where: 'captions.tiktok', text: captions.tiktok },
-          { where: 'captions.sendLine', text: captions.sendLine },
-          // The words inside the tags face the ban list too; the # itself is
-          // the one thing banned.md allows here, so it is stripped for lint.
-          { where: 'captions.hashtags', text: captions.hashtags.map((h) => h.slice(1)).join(' ') },
-        ].filter((t) => t.text);
-        const findings = lintCopy(texts, brain.files.banned, { quotedSources: sources.map((s) => s.quote) });
-        const hard = lintBlocks(findings);
-        const soft = lintFlags(findings);
-        // Closing lines go on after lint, in this order: send line, then hashtags last.
-        if (cfg.captions.sendLine) {
-          if (captions.sendLine) {
-            captions.instagram = withClosingLine(captions.instagram, captions.sendLine);
-          } else {
-            soft.push({ where: 'captions.sendLine', detail: 'send_line_enabled is on but write returned no usable sentence, so the caption went out without a send line' });
-          }
-        }
-        if (cfg.captions.hashtags) {
-          if (captions.hashtags.length >= HASHTAG_MIN) {
-            captions.instagram = withHashtagBlock(captions.instagram, captions.hashtags);
-          } else {
-            soft.push({ where: 'captions.hashtags', detail: `hashtags_enabled is on but write returned ${captions.hashtags.length} usable tag(s); the minimum is ${HASHTAG_MIN}, so the caption went out without a block` });
-          }
-        }
-        if (hard.length) {
-          throw new Blocked(`banned.md: ${hard.map((f) => `${f.where} ${f.rule} ${f.detail}`).join('; ')}`);
-        }
-        // Soft findings and copy still over budget after the rewrite: both are
-        // things to look at before posting, neither stops the deck.
-        const softLines = [
-          ...soft.map((f) => `${f.where}: ${f.detail}`),
-          ...(overBudget || []).map((o) => `${o.where}: ${o.chars} characters in ${o.component}.${o.field}, budget ${o.budget}`),
-        ];
-        if (softLines.length) {
-          await tg.send(`check before posting: ${deckKey} (${idea.topic})\n${softLines.join('\n')}`);
-        }
-
-        const schemaErrors = validate(BRIEF_SCHEMA, brief);
-        if (schemaErrors.length) throw new Error(`the written brief does not match brief.schema.json:\n  ${schemaErrors.slice(0, 8).join('\n  ')}`);
-        state.updateBrief(briefId, { status: 'written', brief_json: JSON.stringify(brief), captions: JSON.stringify(captions) });
-
-        // 5. RENDER
-        fs.mkdirSync(deckDir, { recursive: true });
-        const briefFile = path.join(deckDir, 'brief.json');
-        fs.writeFileSync(briefFile, JSON.stringify(brief, null, 2));
-        fs.writeFileSync(path.join(deckDir, 'captions.json'), JSON.stringify(captions, null, 2));
-        await stageRender({ cfg, briefFile, outDir });
-        state.updateBrief(briefId, { status: 'rendered' });
-
-        // 6. QA
-        const review = await stageQa({ cfg, deckDir });
-        const status = review.pass ? 'pending' : 'blocked';
-        const reason = review.pass
-          ? `${review.summary.warn} warning(s)`
-          : review.flags.filter((f) => f.severity === 'block').map((f) => `slide ${f.slide} ${f.rule}: ${f.detail}`).join('; ');
-        state.addDeck(runId, briefId, { deckKey, topic: idea.topic, status, reason, outDir: deckDir, review });
-        summary.decks.push({ deckKey, topic: idea.topic, status, reason, series: brief.series, headline: brief.cover.headline, cover: path.join(deckDir, '01.jpg') });
-        log(`${deckKey} (${idea.topic}): ${status} — ${reason}`);
-        if (status === 'blocked') {
-          await tg.send(`blocked by qa: ${deckKey} (${idea.topic})\n${reason}`);
-        }
-      } catch (e) {
-        if (e instanceof Blocked) await park('blocked', e.message);
-        else await park('needs_attention', `${e.name || 'error'}: ${e.message}`);
-      }
+      await processIdea({ cfg, brand, brain, state, runId, tg, summary, idea, evidence });
     }
 
     const pending = summary.decks.filter((d) => d.status === 'pending');
@@ -955,4 +1163,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine, queuePlan, staleDecks, staleRow, headlineOf, stageSourceCheck, MIN_SURVIVAL };
+module.exports = { driftCheck, nextDeckKey, normaliseHashtags, withHashtagBlock, normaliseSendLine, withClosingLine, queuePlan, staleDecks, staleRow, headlineOf, stageSourceCheck, stageVerify, sourceLine, processIdea, TIERS, MIN_SURVIVAL };

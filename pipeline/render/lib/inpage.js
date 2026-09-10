@@ -178,10 +178,30 @@ window.__pv = (() => {
         accent: !!el.closest('[data-accent]'),
       });
     }
+    // What of an image is actually VISIBLE. An element's own rect ignores any
+    // ancestor that clips it, and figure-panel deliberately centres a cutout
+    // larger than its panel inside a hidden-overflow box, so the raw rect of a
+    // panel near the right margin reads as hanging off the canvas when nothing
+    // of the sort is on screen. Clipping ancestors are intersected in, stopping
+    // BELOW the canvas: the canvas clips too, and intersecting with it would
+    // make every image trivially in-bounds and the bounds rule useless.
+    const CLIPS = /^(hidden|clip|scroll|auto)$/;
+    const visibleRect = (el) => {
+      let box = el.getBoundingClientRect();
+      let x1 = box.left, y1 = box.top, x2 = box.right, y2 = box.bottom;
+      for (let p = el.parentElement; p && p !== canvasEl(); p = p.parentElement) {
+        const pcs = getComputedStyle(p);
+        if (!CLIPS.test(pcs.overflowX) && !CLIPS.test(pcs.overflowY)) continue;
+        const pb = p.getBoundingClientRect();
+        if (CLIPS.test(pcs.overflowX)) { x1 = Math.max(x1, pb.left); x2 = Math.min(x2, pb.right); }
+        if (CLIPS.test(pcs.overflowY)) { y1 = Math.max(y1, pb.top); y2 = Math.min(y2, pb.bottom); }
+      }
+      return { left: x1, top: y1, right: x2, bottom: y2, width: Math.max(0, x2 - x1), height: Math.max(0, y2 - y1) };
+    };
     const images = [...canvasEl().querySelectorAll('img')].map((img) => {
       const cs = getComputedStyle(img);
       return {
-        cutout: img.dataset.cutout || null, rect: rel(img.getBoundingClientRect()),
+        cutout: img.dataset.cutout || null, rect: rel(img.getBoundingClientRect()), visible: rel(visibleRect(img)),
         naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight,
         mixBlendMode: cs.mixBlendMode, opacity: parseFloat(cs.opacity), filter: cs.filter,
         mask: cs.maskImage || cs.webkitMaskImage, clipPath: cs.clipPath, transform: cs.transform, zIndex: cs.zIndex,

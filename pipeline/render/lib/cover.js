@@ -136,13 +136,11 @@ function figureCandidates(tokens, cutout, fixed, sliced, align, subject) {
       const y = fixed.y !== undefined ? fixed.y : vy[vk];
       const bleeds = x < 0 || y < 0 || x + w > W || y + h > H;
       if (subject === 'detail' && !bleeds) continue; // detail covers bleed off an edge
-      // ...and only detail covers do. On any other subject a placement that
-      // leaves the canvas is a clipped figure, not a composition. Dropping
-      // those here means the search finds a legal placement — scaling down
-      // through RULES.scaleSteps if it has to — instead of preferring the
-      // biggest figure and taking `bottom-deep-right-bleed`, which is how
-      // PV-03 and PV-06 lost 40% of the figure off the right and bottom.
-      if (subject !== 'detail' && bleeds) continue;
+      // Every other subject MAY bleed too — cover-grammar calls it a deliberate
+      // bleed and does not reserve it for the detail type. What stops a bleed
+      // from becoming a clipped figure is not the subject but the two ceilings
+      // in placementInBounds: a quarter of the area at most, and never through
+      // a zone the manifest calls dense.
       // Sliced edges sit on or beyond the canvas edge.
       if (sliced.includes('bottom') && y + h < H - 0.5) continue;
       if (sliced.includes('top') && y > 0.5) continue;
@@ -152,6 +150,31 @@ function figureCandidates(tokens, cutout, fixed, sliced, align, subject) {
     }
   }
   return out;
+}
+
+// Does this placement satisfy the bounds rule? The same two ceilings qa.js
+// applies, checked before a placement is ever considered, so the search cannot
+// settle on something qa will refuse.
+//
+//  - area: at most RULES.coverBleedMaxAreaFrac of the figure off the canvas.
+//  - subject: no zone the manifest marks `dense` may leave the canvas.
+//
+// A detail cover must bleed (figureCandidates enforces that), so a cutout whose
+// dense zones cover most of its grid has no legal detail placement at all. That
+// is a fact about the cutout, and the answer is the next cutout, not a looser
+// rule.
+function placementInBounds(tokens, cutout, place, box) {
+  const W = tokens.canvas.width, H = tokens.canvas.height;
+  const visW = Math.max(0, Math.min(box.x + box.w, W) - Math.max(box.x, 0));
+  const visH = Math.max(0, Math.min(box.y + box.h, H) - Math.max(box.y, 0));
+  if (visW <= 0 || visH <= 0) return false;
+  if (1 - (visW * visH) / (box.w * box.h) > RULES.coverBleedMaxAreaFrac + 1e-9) return false;
+  const tol = RULES.figureOffCanvasTolerance;
+  for (const z of cut.zoneRects(cutout, place)) {
+    if (z.kind !== 'dense') continue;
+    if (z.rect.x < -tol || z.rect.y < -tol || z.rect.x + z.rect.w > W + tol || z.rect.y + z.rect.h > H + tol) return false;
+  }
+  return true;
 }
 
 // Rect-based checks of one headline layout against the placed figure, on the
@@ -388,15 +411,56 @@ async function composeCover(brief, ctx, page, buildPage) {
     const excludedPositions = ctx.history.slice(-ctx.rules.POSITION_WINDOW).map((r) => r.position).filter(Boolean);
     const fig = c.figure || {};
     let candidates;
+    // Candidate cutouts, best first. The rotation window is a PREFERENCE: a
+    // cutout used recently sorts last, it is never removed. Blocking a whole
+    // deck because the freshest option was taken yesterday trades a correct
+    // deck for a variety rule, which is the wrong way round — the composer's
+    // job is to pick the next best thing.
+    const eligible = cut.selectCandidates(cutouts, { subject: c.subject, ground, hints: { energy: fig.energy, faces: fig.faces } })
+      .filter((s) => s.eligible && s.autoSkip.length === 0);
+    const byFreshness = (list) => {
+      const stale = new Map();
+      ctx.history.forEach((r, i) => { if (r.cutout) stale.set(r.cutout, i); });
+      return list.slice().sort((a, b) => {
+        const aRecent = excluded.includes(a.cutout.id), bRecent = excluded.includes(b.cutout.id);
+        if (aRecent !== bRecent) return aRecent ? 1 : -1;                       // fresh first
+        return (stale.get(a.cutout.id) ?? -1) - (stale.get(b.cutout.id) ?? -1); // then least recently used
+      });
+    };
     if (fig.cutout) {
       const chosen = cutouts.byId.get(fig.cutout);
       if (!chosen) throw Object.assign(new Error(`unknown cutout ${fig.cutout}`), { blocks: [{ rule: 'cutout', detail: fig.cutout }] });
-      const [scored] = cut.selectCandidates(cutouts, { subject: c.subject, ground, exclude: excluded }).filter((s) => s.cutout.id === fig.cutout);
-      if (!scored.eligible) throw Object.assign(new Error(`cutout ${fig.cutout} is not eligible: ${scored.reasons.join('; ')}`), { blocks: scored.reasons.map((r) => ({ rule: 'cutout-eligibility', detail: r })) });
-      candidates = [scored];
+      const named = eligible.filter((s) => s.cutout.id === fig.cutout);
+      const pinned = fig.x !== undefined && fig.y !== undefined;
+      if (pinned) {
+        // The brief pinned this figure at this position. Substituting another
+        // cutout would silently render a different cover than the one asked
+        // for, so a pin that cannot be laid out fails and says why.
+        if (!named.length) {
+          throw Object.assign(new Error(`pinned cutout ${fig.cutout} is not eligible here`), {
+            blocks: [{ rule: 'cutout-eligibility', detail: `the brief pins ${fig.cutout}, which the manifest does not allow as a ${c.subject} on ${ground}` }],
+          });
+        }
+        candidates = named;
+      } else {
+        // A named cutout the manifest rules out is not a rotation matter.
+        // Rather than fail, it leads the list and the rest of the pool follows,
+        // so an unplaceable choice degrades to the next best, not to nothing.
+        candidates = named.concat(byFreshness(eligible.filter((s) => s.cutout.id !== fig.cutout)));
+        if (!named.length) console.log(`cover: ${fig.cutout} is not eligible here; falling back to the pool`);
+      }
     } else {
-      candidates = cut.selectCandidates(cutouts, { subject: c.subject, ground, hints: { energy: fig.energy, faces: fig.faces }, exclude: excluded }).filter((s) => s.eligible && s.autoSkip.length === 0);
-      if (!candidates.length) throw Object.assign(new Error('no eligible cutout'), { blocks: [{ rule: 'cutout-selection', detail: `no ${c.subject} cutout allowed on ${ground} outside the rotation window` }] });
+      candidates = byFreshness(eligible);
+    }
+    if (!candidates.length) {
+      // Genuinely nothing in the library fits — not a rotation problem, an
+      // asset problem, and it says so in those words.
+      throw Object.assign(new Error('no eligible cutout'), {
+        blocks: [{
+          rule: 'cutout-pool-empty',
+          detail: `the library has no ${c.subject} cutout usable on ${ground} at all (before any rotation preference): ${cutouts.cutouts.length} in the manifest, none eligible. This needs more cutouts, not a different window.`,
+        }],
+      });
     }
     const tried = [];
     const explicitFront = !!(c.layout && Array.isArray(c.layout.front));
@@ -423,13 +487,28 @@ async function composeCover(brief, ctx, page, buildPage) {
       // Pass 1: rect checks for every placement x headline top. Lines that hit a
       // dense zone or the chrome move in front (fix order step 3) and count as forced.
       const pool = [];
-      for (const p of placements) {
+      placements.forEach((p) => {
         const box = cut.figureBox(cutout, p);
         let mirror = fig.mirror;
         if (mirror === undefined) {
           if (facing) { const toward = headlineCentreX < box.x + box.w / 2 ? 'left' : 'right'; mirror = facing !== toward; } else mirror = false;
         }
         const place = { ...p, mirror };
+        // The bounds rule, applied HERE rather than only at qa. The search was
+        // generating placements qa then refused — a figure 37% off the canvas,
+        // or a bleed straight through the subject — and the deck died for a
+        // layout the composer could simply have not chosen. Same two ceilings
+        // qa checks (rules.js): area off-canvas, and the manifest's own dense
+        // zones. A cutout for which nothing survives is dropped and the loop
+        // moves to the next candidate.
+        // A placement the brief pinned (figure.x + figure.y) is not the
+        // search's choice to second-guess: the composer has no alternative to
+        // offer, and qa still measures it. Everything the search picks itself
+        // must clear the ceilings before it is even considered.
+        if (place.anchor !== 'explicit' && !placementInBounds(tokens, cutout, place, box)) {
+          if (tried.length < 40) tried.push({ cutout: cutout.id, place, stage: 'bounds' });
+          return;
+        }
         const topList = c.layout && c.layout.headlineTop !== undefined ? [c.layout.headlineTop] : orderTops(tops, minTop, box, fit.blockH);
         topList.forEach((top, rank) => {
           const zBehind = fit.lines.map((_, i) => (explicitFront ? !c.layout.front.includes(i) : true));
@@ -445,7 +524,7 @@ async function composeCover(brief, ctx, page, buildPage) {
           if (!zc) { if (tried.length < 40) tried.push({ cutout: cutout.id, place, top, stage: 'zones' }); return; }
           pool.push({ place, box, top, zBehind, forced, rank, typeSpaceShare: zc.typeSpaceShare, zc });
         });
-      }
+      });
       // Drop placements whose position the rotation window forbids, keeping the
       // unfiltered pool if that would leave nothing to choose from.
       const fresh = pool.filter((q) => !excludedPositions.includes(positionLabel(tokens, q.box)));

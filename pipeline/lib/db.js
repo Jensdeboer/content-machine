@@ -152,6 +152,13 @@ class State {
     for (const col of ['draft_id', 'draft_pushed_at', 'packet_sent_at', 'sound', 'approved_at', 'skipped_on']) {
       if (!columns.includes(col)) this.db.exec(`ALTER TABLE decks ADD COLUMN ${col} TEXT`);
     }
+    // Verify classifies rather than gates (config.md, Verify tiers), so a
+    // source row carries which tier it earned and, for figure-backed claims,
+    // the Europe PMC figure it was checked against.
+    const src = this.db.prepare('PRAGMA table_info(sources)').all().map((c) => c.name);
+    for (const col of ['tier', 'first_author', 'year', 'evidence']) {
+      if (!src.includes(col)) this.db.exec(`ALTER TABLE sources ADD COLUMN ${col} TEXT`);
+    }
   }
 
   close() { this.db.close(); }
@@ -207,10 +214,14 @@ class State {
   }
 
   addSource(briefId, s) {
+    // tier/first_author/year/evidence are added by migrate(); a source written
+    // before the tiers existed simply has them null.
     this.db.prepare(`INSERT INTO sources
-      (brief_id, figure, quote, url, publisher, retrieved, cross_checked, headline, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(briefId, s.figure, s.quote, s.url, s.publisher, s.retrieved, s.crossChecked ? 1 : 0, s.headline ? 1 : 0, now());
+      (brief_id, figure, quote, url, publisher, retrieved, cross_checked, headline, created_at, tier, first_author, year, evidence)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(briefId, s.figure, s.quote, s.url, s.publisher, s.retrieved, s.crossChecked ? 1 : 0, s.headline ? 1 : 0, now(),
+        s.tier || null, s.firstAuthor || null, s.year == null ? null : String(s.year),
+        s.evidence ? JSON.stringify(s.evidence) : null);
   }
 
   addDeck(runId, briefId, d) {

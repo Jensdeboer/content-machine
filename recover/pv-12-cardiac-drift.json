@@ -1,0 +1,10 @@
+{
+  "topic": "cardiac-drift-and-fitness",
+  "series": "Science",
+  "angle": "The widely repeated cardiac-drift split (10-20% for untrained runners, under 5% for trained ones) does not survive contact with the literature. In the durability work indexed as PMC9977827, trained runners drifted 7.7% before a training block and 6.3% after it - both above the number the internet says a fit runner should hit. The deck is a correction: the number people quote is not in the research, and what the research actually reports is a smaller, less flattering difference.",
+  "figures": [
+    "heart-rate drift 7.7% before an endurance training block and 6.3% after it, in trained participants (PMC9977827)"
+  ],
+  "score": 5,
+  "why": "the original figure was blocked at verify precisely because it is unsourceable; the reason it is unsourceable is the story"
+}

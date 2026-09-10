@@ -8,8 +8,11 @@ half.
 ## Rules for this folder
 
 1. Plain markdown and JSON only. Readable, diffable, reviewable.
-2. Nothing writes here unattended except memory/posted.jsonl and
-   memory/rejected.md. Everything else changes by hand or by a PR you merge.
+2. Nothing writes here unattended except memory/posted.jsonl,
+   memory/rejected.md and memory/notes.md. Everything else changes by hand or
+   by a PR you merge. notes.md is written by the inbox and read by nobody in
+   the pipeline: it collects feedback for the weekly review, and no run
+   behaves differently because of what is in it.
 3. The weekly rewrite may propose changes to memory/winners.md, series.md
    weights and growth.md — never to voice.md, banned.md or positioning.md.
    Those are yours.

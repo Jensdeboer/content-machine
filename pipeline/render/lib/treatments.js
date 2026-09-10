@@ -78,7 +78,27 @@ const ON_DARK = {
 
 // The builders every component draws its caption stack with, bound to one
 // treatment. Components never read the treatment directly; they call these.
-function helpers(t, tokens) {
+// Compaction ladder. A slide whose copy runs past the content area pushes the
+// footer off the safe zone, which is how "SWIPE →" kept turning up out of
+// bounds: nothing measured a body slide before it was committed. Rather than
+// clip the copy or loosen the rule, the composer re-sets the same slide a
+// little tighter and measures again — the body-slide equivalent of the
+// cover's fitHeadline stepping down the size scale.
+//
+// Rungs, in the order they cost the least: first the anchor inset and the
+// container padding, which are breathing room; then the type, one step at a
+// time, headline before body because a headline at 96px buys more height per
+// step than body copy at 36px.
+const COMPACTION = [
+  {},
+  { dropEdgeInset: true, tightContainer: true },
+  { dropEdgeInset: true, tightContainer: true, headline: -1 },
+  { dropEdgeInset: true, tightContainer: true, headline: -1, body: -1 },
+  { dropEdgeInset: true, tightContainer: true, headline: -2, body: -1, tightGaps: true },
+];
+
+function helpers(t, tokens, compaction = 0) {
+  const squeeze = COMPACTION[Math.min(compaction, COMPACTION.length - 1)] || {};
   const k = metrics.caption;
   const displayFn = (weight) => (weight === 'bold' ? type.displayBold : type.displaySemi);
   const tone = (role) => (t.ground === 'accent' ? ON_DARK[role] || role : role);
@@ -116,7 +136,7 @@ function helpers(t, tokens) {
   };
 
   const headline = (text, step, extra = {}) => {
-    const s = shiftStep(tokens, step, t.headline.stepShift);
+    const s = shiftStep(tokens, step, t.headline.stepShift + (squeeze.headline || 0));
     const style = displayFn(t.headline.weight)(s, {
       'line-height': v('lead-headline'), 'letter-spacing': v('track-headline'), color: color(t.headline.tone), ...extra,
     });
@@ -128,7 +148,7 @@ function helpers(t, tokens) {
   };
 
   const body = (text, step = 'body-lg', extra = {}) => {
-    const s = shiftStep(tokens, step, t.body.stepShift);
+    const s = shiftStep(tokens, step, t.body.stepShift + (squeeze.body || 0));
     return `<p data-role="body" style="margin:0;max-width:${px(metrics.copyMaxWidth)};${type.body(s, { color: color(t.body.tone), ...extra })}">${richText(text, { tone: t.body.tone })}</p>`;
   };
 
@@ -136,8 +156,12 @@ function helpers(t, tokens) {
   // in a ground-alt block; `layout: side-label` splits the kicker into a left
   // column. Text stays inside the safe area in every combination: the tint
   // block pads inward from the content column, never outward past the margin.
-  const stack = (gap, parts, extra = {}) => {
+  const stack = (gapIn, parts, extra = {}) => {
     const { label = '', main = '', wide = false } = parts;
+    // Gaps snap to the space scale so a compacted slide still sits on the grid.
+    const gap = squeeze.tightGaps && gapIn
+      ? (tokens.spaceScale.filter((n) => n <= gapIn * 0.6).pop() || gapIn)
+      : gapIn;
     let inner;
     // `wide` content needs the whole 888 measure — a hero number, a two-column
     // compare, a chart, a metrics row. The side-label column would leave it
@@ -151,7 +175,8 @@ function helpers(t, tokens) {
       inner = `<div style="${st({ display: 'flex', 'flex-direction': 'column', gap: gap ? space(gap) : '0' })}">${label}${main}</div>`;
     }
     if (t.container === 'tint') {
-      inner = `<div style="${st({ background: color('ground-alt'), padding: space(k.tintPad) })}">${inner}</div>`;
+      const pad = squeeze.tightContainer ? tokens.spaceScale.filter((n) => n <= k.tintPad / 2).pop() : k.tintPad;
+      inner = `<div style="${st({ background: color('ground-alt'), padding: space(pad) })}">${inner}</div>`;
     }
     // A top- or bottom-anchored stack sits flush against the safe edge, and a
     // text rect is taller than its line box whenever leading is tight: the
@@ -161,12 +186,13 @@ function helpers(t, tokens) {
     // display size a body stack can lead with (xl 300 at the ~14% overshoot
     // measured on Sora), so tight leading has somewhere to go. Centre-anchored
     // stacks have slack on both sides already and take no inset.
-    const edgeInset = t.anchor === 'top' ? { 'padding-top': space(k.edgeAnchorInset) }
-      : t.anchor === 'bottom' ? { 'padding-bottom': space(k.edgeAnchorInset) } : {};
+    const edgeInset = squeeze.dropEdgeInset ? {}
+      : t.anchor === 'top' ? { 'padding-top': space(k.edgeAnchorInset) }
+        : t.anchor === 'bottom' ? { 'padding-bottom': space(k.edgeAnchorInset) } : {};
     return `<div data-role="content" style="${st({ flex: 1, display: 'flex', 'flex-direction': 'column', 'justify-content': ANCHORS[t.anchor], ...edgeInset, ...extra })}">${inner}</div>`;
   };
 
-  return { treatment: t, tone, richText, kicker, headline, body, stack, shiftStep: (step, shift) => shiftStep(tokens, step, shift) };
+  return { treatment: t, compaction, tone, richText, kicker, headline, body, stack, shiftStep: (step, shift) => shiftStep(tokens, step, shift) };
 }
 
 // The deck's treatment: the first in manifest order that the no-repeat window
@@ -191,4 +217,4 @@ function pick(set, rows, window) {
     .sort((a, b) => order(a) - order(b) || rank.get(a.id) - rank.get(b.id))[0];
 }
 
-module.exports = { loadTreatments, helpers, shiftStep, pick, ANCHORS, LAYOUTS, EMPHASES, CONTAINERS, GROUNDS };
+module.exports = { loadTreatments, helpers, shiftStep, pick, COMPACTION, ANCHORS, LAYOUTS, EMPHASES, CONTAINERS, GROUNDS };

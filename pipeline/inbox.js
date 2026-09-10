@@ -20,8 +20,16 @@
 // stops; nothing posts until "ok" is sent here, and packet.js consumes the
 // approved queue and nothing else.
 //
+// Notes (memory/notes.md) are WRITE-ONLY from the pipeline's side: this file
+// appends to them and nothing in the pipeline reads them back. A single
+// remark is an observation, not a rule. They accumulate for the Sunday
+// review, where a human decides whether anything there becomes doctrine.
+// test/inbox.js asserts that no other file in pipeline/ reads notes.md.
+//
 // Commands, case-insensitive, one per message, only from TELEGRAM_CHAT:
 //   ok PV-07             pending -> approved; the next packet may post it
+//   ok PV-07 <text>      the same, and the text is kept as a note
+//   note PV-07 <text>    free-text feedback on any deck, in any state
 //   no PV-07 <reason>    deck rejected; a topic-scoped row goes to rejected.md
 //   skip PV-07           approved -> pending; decide again another day
 //   stop                 publishing_enabled: no in config.md
@@ -106,6 +114,8 @@ function getUpdates(token, offset) {
 const HELP = [
   'I understand these, one per message:',
   '  ok PV-07             approve it; the next packet may post it',
+  '  ok PV-07 <text>      approve it and keep the text as a note',
+  '  note PV-07 <text>    feedback on any deck, whatever state it is in',
   '  no PV-07 <reason>    reject it; the reason goes to rejected.md',
   '  skip PV-07           back to pending, decide again another day',
   '  stop                 publishing off',
@@ -117,7 +127,7 @@ const HELP = [
 
 function parse(text) {
   const t = String(text || '').trim();
-  let m = t.match(/^(ok|no|skip|show)\s+([a-z]{1,4}-\d{1,4})\b\s*(.*)$/is);
+  let m = t.match(/^(ok|no|skip|show|note)\s+([a-z]{1,4}-\d{1,4})\b\s*(.*)$/is);
   if (m) return { action: m[1].toLowerCase(), deckKey: m[2].toUpperCase(), reason: m[3].trim() };
   m = t.match(/^(stop|go|status|queue)\s*$/i);
   if (m) return { action: m[1].toLowerCase() };
@@ -151,6 +161,25 @@ function hasRejectedRow(file, date, slug) {
   });
 }
 
+// notes.md. Minute precision, not just a date: several notes on one deck in a
+// day are normal, and the order they were made in is part of the record.
+function noteRow({ when, deck, topic, text }) {
+  const cell = (v) => String(v || '').replace(/\s*\|\s*/g, ' / ').replace(/\s+/g, ' ').trim();
+  return `| ${when} | ${cell(deck)} | ${cell(topic) || '-'} | ${cell(text)} |\n`;
+}
+
+// The row goes in before the update is recorded as seen, so a crash between
+// the two would replay it. The same text on the same deck in the same minute
+// is that replay, not a second thought.
+function hasNoteRow(file, when, deck, text) {
+  if (!fs.existsSync(file)) return false;
+  const wanted = noteRow({ when, deck, topic: null, text }).split('|');
+  return fs.readFileSync(file, 'utf8').split('\n').some((line) => {
+    const cells = line.split('|').map((c) => c.trim());
+    return cells.length >= 6 && cells[1] === when && cells[2] === String(deck || '') && cells[4] === wanted[4].trim();
+  });
+}
+
 // --------------------------------------------------------------------------
 // Acting. Pure over its inputs so the fixture test can drive it: returns the
 // replies and the writes it made (or would have made, on a dry run).
@@ -173,8 +202,20 @@ function ageDays(createdAt, date) {
   return Number.isFinite(days) ? Math.max(0, days) : null;
 }
 
-function handle({ cfg, state, brand, cmd, date, dryRun, files }) {
+function handle({ cfg, state, brand, cmd, date, dryRun, files, now = new Date() }) {
   const w = (fn) => { if (!dryRun) fn(); };
+  // One place that writes a note, so `note` and `ok <text>` record identically.
+  // Returns what to say and what was written, or null when there is no text.
+  const recordNote = (deck, text) => {
+    if (!text) return null;
+    const when = `${now.toISOString().slice(0, 10)} ${now.toISOString().slice(11, 16)}`;
+    const row = noteRow({ when, deck: deck.deck_key, topic: deck.topic, text });
+    w(() => {
+      fs.mkdirSync(path.dirname(files.notes), { recursive: true });
+      if (!hasNoteRow(files.notes, when, deck.deck_key, text)) fs.appendFileSync(files.notes, row);
+    });
+    return { when, row, write: `notes.md += ${row.trim()}` };
+  };
   if (cmd.action === 'help') return { reply: HELP, writes: [] };
 
   if (cmd.action === 'status') {
@@ -226,22 +267,43 @@ function handle({ cfg, state, brand, cmd, date, dryRun, files }) {
     return { reply: `${head}\n${deck.status} · ${slides.length} slides follow`, documents: slides, writes: [] };
   }
 
+  if (cmd.action === 'note') {
+    // Deliberately ungated on status. Most feedback arrives after a deck is
+    // live or after the metrics land, which is exactly when its state is no
+    // longer pending — refusing those would throw away the useful half.
+    if (!cmd.reason) return { reply: `${name}: a note needs something to say. Send "note ${deck.deck_key} <text>".`, writes: [] };
+    const noted = recordNote(deck, cmd.reason);
+    return {
+      reply: `Noted on ${deck.deck_key} (${deck.topic || 'no topic'}), which is ${deck.status}: "${cmd.reason}"\nKept in notes.md for the Sunday review. Nothing about tonight's run changes.`,
+      writes: [noted.write],
+    };
+  }
+
   if (cmd.action === 'ok') {
+    // Trailing text is feedback, and it is kept whatever the approval does.
+    // Approving something you still have a criticism of is the common case,
+    // and a criticism attached to a deck that turns out to be blocked is
+    // still the criticism: dropping it because the state was wrong would
+    // throw away the half of the message that keeps its value.
+    const noted = recordNote(deck, cmd.reason);
+    const withNote = (r) => (noted
+      ? { ...r, reply: `${r.reply}\nNoted: "${cmd.reason}" — kept in notes.md for the Sunday review.`, writes: [...r.writes, noted.write] }
+      : r);
     // Approving what is already approved is the same state again: a message
     // delivered twice must be a no-op, not an error.
-    if (deck.status === 'approved') return { reply: `${deck.deck_key} is already approved — it posts at the next packet run.`, writes: [] };
+    if (deck.status === 'approved') return withNote({ reply: `${deck.deck_key} is already approved — it posts at the next packet run.`, writes: [] });
     // A blocked deck failed verification or qa. Approving it would put a deck
     // that did not trace in front of the packet, so it is refused with the
     // reason rather than silently let through.
     if (deck.status === 'blocked') {
-      return { reply: `${name} is blocked and will not be approved: ${deck.reason || 'it failed verification or qa'}. Fix the deck or reject it with "no ${deck.deck_key} <reason>".`, writes: [] };
+      return withNote({ reply: `${name} is blocked and will not be approved: ${deck.reason || 'it failed verification or qa'}. Fix the deck or reject it with "no ${deck.deck_key} <reason>".`, writes: [] });
     }
-    if (deck.status !== 'pending') return { reply: `${name} is ${deck.status}, not pending; nothing to approve.`, writes: [] };
+    if (deck.status !== 'pending') return withNote({ reply: `${name} is ${deck.status}, not pending; nothing to approve.`, writes: [] });
     w(() => state.approveDeck(deck.deck_key));
-    return {
+    return withNote({
       reply: `Approved ${deck.deck_key} (${headlineOf(deck) || deck.topic || 'no headline'}) — will post at the next packet run.`,
       writes: [`${deck.deck_key} status approved`],
-    };
+    });
   }
   if (cmd.action === 'skip') {
     if (deck.status !== 'pending' && deck.status !== 'approved') return { reply: `${name} is ${deck.status}, not pending or approved; nothing to skip.`, writes: [] };
@@ -324,7 +386,11 @@ async function main() {
   const tg = new Telegram(cfg.telegram);
   const token = process.env[cfg.telegram.tokenEnv];
   const chatId = process.env[cfg.telegram.chatEnv];
-  const files = { config: cfg.file || path.join(cfg.dir, 'config.md'), rejected: path.join(cfg.dir, 'memory', 'rejected.md') };
+  const files = {
+    config: cfg.file || path.join(cfg.dir, 'config.md'),
+    rejected: path.join(cfg.dir, 'memory', 'rejected.md'),
+    notes: path.join(cfg.dir, 'memory', 'notes.md'),
+  };
   const finish = (code) => { state.close(); process.exit(code); };
   if (dryRun) log('DRY RUN: nothing is written, replied or acknowledged');
 
@@ -367,4 +433,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { parse, handle, processUpdates, setPublishing, rejectedRow, hasRejectedRow, ageDays, otherReadersOf, assertOnlyReader, HELP };
+module.exports = { parse, handle, processUpdates, setPublishing, rejectedRow, hasRejectedRow, noteRow, hasNoteRow, ageDays, otherReadersOf, assertOnlyReader, HELP };

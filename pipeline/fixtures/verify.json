@@ -1,64 +1,168 @@
 {
-  "$fixture": "MODELS_BACKEND=stub only. One response per idea, in pick order. The urls are real records; the quotes are NOT real quotes and say so, and every row is crossChecked false, so QA warns and the publish gate stays shut. Fixture output must never look publishable.",
+  "$fixture": "MODELS_BACKEND=stub only. One response per idea, in pick order. Verify is a classifier (config.md, Verify tiers): every claim gets a tier and only `fabricated` blocks. The urls are real records; the quotes are NOT real quotes and say so. No response here is `figure-backed`, because that tier is checked against Europe PMC over the network and a stub run must not depend on the network — a stub deck is SOURCED plus COMMON KNOWLEDGE, which is the ordinary case. Fixture output must never look publishable.",
   "responses": [
     {
-      "blocked": false,
-      "blockReason": null,
-      "sources": [
+      "claims": [
         {
-          "figure": "~2",
-          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
-          "publisher": "FIXTURE, not a verified publisher",
-          "retrieved": "2026-09-07",
-          "crossChecked": false,
-          "headline": false
-        }
-      ]
-    },
-    { "blocked": false, "blockReason": null, "sources": [] },
-    {
-      "blocked": false,
-      "blockReason": null,
-      "sources": [
+          "text": "easy pace is the effort you can hold while talking in full sentences",
+          "figure": null,
+          "tier": "common-knowledge",
+          "why": "qualitative: describes how a pace should feel, states no measured quantity"
+        },
         {
-          "figure": "~2,000",
-          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/42698071/",
-          "publisher": "FIXTURE, not a verified publisher",
-          "retrieved": "2026-09-07",
-          "crossChecked": false,
-          "headline": false
-        }
-      ]
-    },
-    {
-      "blocked": false,
-      "blockReason": null,
-      "sources": [
+          "text": "keep most of the week's running easy",
+          "figure": "80%",
+          "tier": "common-knowledge",
+          "why": "prescriptive: tells the reader what to do, it is coaching convention rather than a finding"
+        },
         {
-          "figure": "500",
-          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/42688531/",
-          "publisher": "FIXTURE, not a verified publisher",
-          "retrieved": "2026-09-07",
-          "crossChecked": false,
-          "headline": false
+          "text": "FIXTURE claim carrying a measured figure",
+          "figure": "~2 min/km slower than 5K pace",
+          "tier": "sourced",
+          "why": "specific empirical number with one primary source",
+          "source": {
+            "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+            "publisher": "FIXTURE, not a verified publisher",
+            "firstAuthor": "Fixture",
+            "year": 2026,
+            "n": null,
+            "doi": null,
+            "pmcid": null,
+            "retrieved": "2026-09-10"
+          }
         }
       ]
     },
     {
-      "blocked": false,
-      "blockReason": null,
-      "sources": [
+      "claims": [
         {
-          "figure": "10",
-          "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
-          "url": "https://pubmed.ncbi.nlm.nih.gov/42688309/",
-          "publisher": "FIXTURE, not a verified publisher",
-          "retrieved": "2026-09-07",
-          "crossChecked": false,
-          "headline": false
+          "text": "easy pace is the effort you can hold while talking in full sentences",
+          "figure": null,
+          "tier": "common-knowledge",
+          "why": "qualitative: describes how a pace should feel, states no measured quantity"
+        },
+        {
+          "text": "keep most of the week's running easy",
+          "figure": "80%",
+          "tier": "common-knowledge",
+          "why": "prescriptive: tells the reader what to do, it is coaching convention rather than a finding"
+        },
+        {
+          "text": "FIXTURE claim carrying a measured figure",
+          "figure": "~2 min/km slower than 5K pace",
+          "tier": "sourced",
+          "why": "specific empirical number with one primary source",
+          "source": {
+            "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+            "publisher": "FIXTURE, not a verified publisher",
+            "firstAuthor": "Fixture",
+            "year": 2026,
+            "n": null,
+            "doi": null,
+            "pmcid": null,
+            "retrieved": "2026-09-10"
+          }
+        }
+      ]
+    },
+    {
+      "claims": [
+        {
+          "text": "easy pace is the effort you can hold while talking in full sentences",
+          "figure": null,
+          "tier": "common-knowledge",
+          "why": "qualitative: describes how a pace should feel, states no measured quantity"
+        },
+        {
+          "text": "keep most of the week's running easy",
+          "figure": "80%",
+          "tier": "common-knowledge",
+          "why": "prescriptive: tells the reader what to do, it is coaching convention rather than a finding"
+        },
+        {
+          "text": "FIXTURE claim carrying a measured figure",
+          "figure": "~2 min/km slower than 5K pace",
+          "tier": "sourced",
+          "why": "specific empirical number with one primary source",
+          "source": {
+            "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+            "publisher": "FIXTURE, not a verified publisher",
+            "firstAuthor": "Fixture",
+            "year": 2026,
+            "n": null,
+            "doi": null,
+            "pmcid": null,
+            "retrieved": "2026-09-10"
+          }
+        }
+      ]
+    },
+    {
+      "claims": [
+        {
+          "text": "easy pace is the effort you can hold while talking in full sentences",
+          "figure": null,
+          "tier": "common-knowledge",
+          "why": "qualitative: describes how a pace should feel, states no measured quantity"
+        },
+        {
+          "text": "keep most of the week's running easy",
+          "figure": "80%",
+          "tier": "common-knowledge",
+          "why": "prescriptive: tells the reader what to do, it is coaching convention rather than a finding"
+        },
+        {
+          "text": "FIXTURE claim carrying a measured figure",
+          "figure": "~2 min/km slower than 5K pace",
+          "tier": "sourced",
+          "why": "specific empirical number with one primary source",
+          "source": {
+            "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+            "publisher": "FIXTURE, not a verified publisher",
+            "firstAuthor": "Fixture",
+            "year": 2026,
+            "n": null,
+            "doi": null,
+            "pmcid": null,
+            "retrieved": "2026-09-10"
+          }
+        }
+      ]
+    },
+    {
+      "claims": [
+        {
+          "text": "easy pace is the effort you can hold while talking in full sentences",
+          "figure": null,
+          "tier": "common-knowledge",
+          "why": "qualitative: describes how a pace should feel, states no measured quantity"
+        },
+        {
+          "text": "keep most of the week's running easy",
+          "figure": "80%",
+          "tier": "common-knowledge",
+          "why": "prescriptive: tells the reader what to do, it is coaching convention rather than a finding"
+        },
+        {
+          "text": "FIXTURE claim carrying a measured figure",
+          "figure": "~2 min/km slower than 5K pace",
+          "tier": "sourced",
+          "why": "specific empirical number with one primary source",
+          "source": {
+            "quote": "FIXTURE TEXT, not a real quote. Offline pipeline test only.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/42670949/",
+            "publisher": "FIXTURE, not a verified publisher",
+            "firstAuthor": "Fixture",
+            "year": 2026,
+            "n": null,
+            "doi": null,
+            "pmcid": null,
+            "retrieved": "2026-09-10"
+          }
         }
       ]
     }

@@ -16,6 +16,7 @@ const CHIP_QUOTA = 7;
 const HASH_DAYS = 90;      // deck-rules quality gate: perceptual-hash check, last 90 days
 const TREATMENT_WINDOW = 3; // caption-treatments: no caption treatment repeated within 3 decks
 const SHAPE_WINDOW = 3;     // brief.shape: no deck shape repeated within 3 decks
+const OBJECT_WINDOW = 5;    // objects.json: no object repeated within 5 posts, mirroring the cutout rule
 
 function readPosted(brandDir) {
   const file = path.join(brandDir, 'memory', 'posted.jsonl');
@@ -189,6 +190,62 @@ function recentHashes(rows, dateIso, days = HASH_DAYS) {
     .map((r) => ({ deckId: r.deckId, date: r.date, hash: r.coverHash }));
 }
 
+// Objects (design/00-assets/objects.json). The rules exist and read the same
+// history the cutout rules do, so the day a component asks for an object the
+// rotation is already there and already correct.
+//
+// INERT UNTIL THEN, and deliberately so. No slide component requests an
+// object, the cover composer never places one, and nothing writes `object` to
+// a posted row — so checkObject sees no history and returns ok for everything.
+// That is the intended state, not an oversight: the rules are written now
+// because writing them alongside the cutout rules is how they stay consistent,
+// and switching them on is a matter of a component naming an object, not of
+// editing this file.
+function loadObjects(brandDir) {
+  const file = path.join(brandDir, 'design', '00-assets', 'objects.json');
+  if (!fs.existsSync(file)) return { objects: [], byId: new Map(), byCategory: new Map() };
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const objects = manifest.objects || [];
+  const byCategory = new Map();
+  for (const o of objects) {
+    if (!byCategory.has(o.category)) byCategory.set(o.category, []);
+    byCategory.get(o.category).push(o);
+  }
+  return { file, manifest, objects, byId: new Map(objects.map((o) => [o.id, o])), byCategory };
+}
+
+// No object repeated within OBJECT_WINDOW posts. Same shape as checkCutout,
+// and like every rotation rule it is a preference: the composer prefers a
+// fresh object and settles for the least recently used one when the category
+// has nothing fresher. It never blocks a deck.
+function checkObject(rows, objectId) {
+  if (!objectId) return { ok: true, rule: 'object-rotation', detail: 'no object on this deck' };
+  const recent = rows.slice(-OBJECT_WINDOW).map((r) => r.object).filter(Boolean);
+  return {
+    ok: !recent.includes(objectId),
+    rule: 'object-rotation',
+    detail: recent.includes(objectId)
+      ? `${objectId} was used within the last ${OBJECT_WINDOW} posts`
+      : `${objectId} not used in the last ${OBJECT_WINDOW} posts`,
+    recent,
+  };
+}
+
+// The objects a component may choose from, freshest first: never used, then
+// least recently used, then whatever the window still holds. Returns [] when
+// the category is empty, which is an asset problem and reads as one.
+function objectCandidates(lib, rows, { category = null } = {}) {
+  const pool = category ? (lib.byCategory.get(category) || []) : lib.objects;
+  const recent = rows.slice(-OBJECT_WINDOW).map((r) => r.object).filter(Boolean);
+  const lastUsed = new Map();
+  rows.forEach((r, i) => { if (r.object) lastUsed.set(r.object, i); });
+  return pool.slice().sort((a, b) => {
+    const aRecent = recent.includes(a.id), bRecent = recent.includes(b.id);
+    if (aRecent !== bRecent) return aRecent ? 1 : -1;
+    return (lastUsed.get(a.id) ?? -1) - (lastUsed.get(b.id) ?? -1);
+  });
+}
+
 // The row the publish step should append once the post is live.
 function toPostedRow(brief, resolved) {
   return {
@@ -204,6 +261,8 @@ function toPostedRow(brief, resolved) {
     signal: brief.cover.signal || null,
     kicker: resolved.kicker ? resolved.kicker.text : null,
     treatment: resolved.treatment || null,
+    // null until a component places one; see checkObject above.
+    object: resolved.object || null,
     shape: brief.shape || null,
     components: brief.slides.map((x) => x.type),
     coverHash: resolved.coverHash || null,
@@ -212,6 +271,6 @@ function toPostedRow(brief, resolved) {
 }
 
 module.exports = {
-  readHistory, readPosted, readRendered, groundFamily, checkGround, checkMix, checkCutout, checkPosition, checkMode, checkKicker, checkTreatment, checkShape, recentHashes, toPostedRow,
-  MIX_WINDOW, MIX_QUOTA, CUTOUT_WINDOW, POSITION_WINDOW, MODE_RUN, KICKER_RUN, CHIP_WINDOW, CHIP_QUOTA, HASH_DAYS, TREATMENT_WINDOW, SHAPE_WINDOW,
+  readHistory, readPosted, readRendered, groundFamily, checkGround, checkMix, checkCutout, checkPosition, checkMode, checkKicker, checkTreatment, checkShape, checkObject, objectCandidates, loadObjects, recentHashes, toPostedRow,
+  MIX_WINDOW, MIX_QUOTA, CUTOUT_WINDOW, POSITION_WINDOW, MODE_RUN, KICKER_RUN, CHIP_WINDOW, CHIP_QUOTA, HASH_DAYS, TREATMENT_WINDOW, SHAPE_WINDOW, OBJECT_WINDOW,
 };
