@@ -237,12 +237,14 @@ async function main() {
     // rather than after.
     const designedContentH = tokens.canvas.height - 2 * tokens.margin - tokens.footerHeight;
     const safeBottom = tokens.safe.y + tokens.safe.height;
+    const canvasBox = { x: 0, y: 0, w: tokens.canvas.width, h: tokens.canvas.height };
+    const safeBox = { x: tokens.safe.x, y: tokens.safe.y, w: tokens.safe.width, h: tokens.safe.height };
     const contentFits = async (html) => {
       await browser.show(page, html);
-      return page.evaluate(({ maxH, bottom }) => {
+      const box = await page.evaluate(({ maxH, bottom }) => {
         const cv = document.querySelector('[data-role="canvas"]');
         const content = cv.querySelector('[data-role="content"]');
-        if (!content) return { fits: true, have: 0, maxH };
+        if (!content) return { fits: true, have: 0, maxH, footBottom: 0 };
         const base = cv.getBoundingClientRect();
         const foot = cv.querySelector('[data-role="footer"],[data-role="cta-footer"]');
         const have = content.getBoundingClientRect().height;
@@ -252,6 +254,14 @@ async function main() {
           have: Math.round(have), maxH, footBottom: Math.round(footBottom),
         };
       }, { maxH: designedContentH, bottom: safeBottom });
+
+      // Vertical fit is only half of it. Copy can also run out SIDEWAYS — a
+      // wide stat value, a long compare label — and the ladder's smaller type
+      // is exactly the fix, but only if something looks. Measured with qa's
+      // own rule, so what the ladder chases is what qa would otherwise block.
+      const audit = await page.evaluate(() => window.__pv.audit());
+      const overflow = qa.textOverflowFlags(audit, { canvasBox, safeBox, isCover: false });
+      return { ...box, fits: box.fits && overflow.length === 0, overflow: overflow.map((o) => o.detail) };
     };
     const pages = [{ html: cover.html, type: 'cover' }];
     for (let i = 0; i < brief.slides.length; i++) {
@@ -267,7 +277,9 @@ async function main() {
         // copy, not a layout that needs another notch, and it says so.
         throw new Blocked([{
           rule: 'slide-does-not-fit',
-          detail: `slide ${i + 2} (${slide.type}) still overflows at the tightest setting: ${last.have}px of content in ${last.maxH}px, footer ending at ${last.footBottom}. The copy is over what the component holds — see component-capacity.json.`,
+          detail: `slide ${i + 2} (${slide.type}) still does not fit at the tightest setting: ${last.have}px of content in ${last.maxH}px, footer ending at ${last.footBottom}`
+            + `${last.overflow && last.overflow.length ? `; ${last.overflow.join('; ')}` : ''}`
+            + '. The copy is over what the component holds — see component-capacity.json.',
         }]);
       }
       if (level > 0) compactions.push({ slide: i + 2, type: slide.type, level });

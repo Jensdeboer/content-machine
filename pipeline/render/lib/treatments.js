@@ -89,12 +89,18 @@ const ON_DARK = {
 // container padding, which are breathing room; then the type, one step at a
 // time, headline before body because a headline at 96px buys more height per
 // step than body copy at 36px.
+//
+// Hero and compare VALUES shrink too, from rung 3. They are the one thing that
+// cannot wrap — "3:50:44" at the l step is a single unbreakable token wider
+// than a compare column — so a slide can be perfectly fine on height and still
+// have a number hanging off the canvas. Leaving values out of the ladder means
+// the loop measures an overflow it has no lever to fix.
 const COMPACTION = [
   {},
   { dropEdgeInset: true, tightContainer: true },
   { dropEdgeInset: true, tightContainer: true, headline: -1 },
-  { dropEdgeInset: true, tightContainer: true, headline: -1, body: -1 },
-  { dropEdgeInset: true, tightContainer: true, headline: -2, body: -1, tightGaps: true },
+  { dropEdgeInset: true, tightContainer: true, headline: -1, body: -1, value: -1 },
+  { dropEdgeInset: true, tightContainer: true, headline: -2, body: -1, value: -2, tightGaps: true },
 ];
 
 function helpers(t, tokens, compaction = 0) {
@@ -192,7 +198,8 @@ function helpers(t, tokens, compaction = 0) {
     return `<div data-role="content" style="${st({ flex: 1, display: 'flex', 'flex-direction': 'column', 'justify-content': ANCHORS[t.anchor], ...edgeInset, ...extra })}">${inner}</div>`;
   };
 
-  return { treatment: t, compaction, tone, richText, kicker, headline, body, stack, shiftStep: (step, shift) => shiftStep(tokens, step, shift) };
+  const valueStep = (step) => shiftStep(tokens, step, squeeze.value || 0);
+  return { treatment: t, compaction, tone, valueStep, richText, kicker, headline, body, stack, shiftStep: (step, shift) => shiftStep(tokens, step, shift) };
 }
 
 // The deck's treatment: the first in manifest order that the no-repeat window

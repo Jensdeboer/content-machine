@@ -26,7 +26,7 @@ const CTA_ICONS = [
 // stays visible when the slide inverts.
 const valueRow = (h, value, unit, step, gap = 24) =>
   `<div data-role="value" style="${st({ display: 'flex', 'align-items': 'baseline', gap: space(gap), 'flex-wrap': 'wrap' })}">` +
-  `<span style="${type.displayBold(step, { 'line-height': metrics.leading.hero, 'letter-spacing': v('track-statement'), color: color(h.tone('accent-ink')) })}">${esc(value)}</span>` +
+  `<span style="${type.displayBold(h.valueStep(step), { 'line-height': metrics.leading.hero, 'letter-spacing': v('track-statement'), color: color(h.tone('accent-ink')) })}">${esc(value)}</span>` +
   (unit ? `<span style="${type.data({ 'font-size': size('body'), 'letter-spacing': v('track-wide'), color: color(h.tone('accent-ink')) })}">${esc(unit)}</span>` : '') + `</div>`;
 
 function slideShell({ ground = 'white', inner, footer }) {
