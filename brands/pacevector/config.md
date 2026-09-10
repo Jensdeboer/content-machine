@@ -102,24 +102,21 @@ provider.
 
 ## Captions
 
-- Instagram: clean. Hook line first, no hashtags in the caption text, no
-  search padding.
-- `hashtags_enabled`: no. Off by default; flipped by hand for the growth.md
-  experiment. When yes, the write stage produces 3-5 topical Instagram
-  hashtags as a separate field and the run appends them as one final line
-  under the caption, after a blank line. They are never woven into the
-  caption, and TikTok stays plain search phrases either way.
-- `send_line_enabled`: no. Off by default; flipped by hand for the growth.md
-  experiment. When yes, the write stage produces one sentence in voice asking
-  the reader to send the post to someone they run with, as a separate field,
-  and the run appends it as a closing line under the Instagram caption after
-  a blank line, before the hashtag block if that is on. One sentence, no
-  exclamation mark, never woven into the caption. TikTok is untouched.
-- TikTok: **2-3 plain search phrases allowed** in the first line, woven in
-  naturally - "easy run pace", "marathon taper", "how to start running".
-  Not hashtags; phrases people actually type into search.
-- Both: the ban list in banned.md applies without exception to the caption
-  text and to the words inside any hashtag.
+- Two captions land in Telegram per post: Instagram, then TikTok.
+- Instagram: clean. Hook line first, no hashtags, no search padding. Jens
+  adds one hashtag by hand at posting: `#pacevector`.
+- TikTok: **2–3 plain search phrases allowed** in the first line, woven in
+  naturally — "easy run pace", "marathon taper", "how to start running".
+  Not hashtags; phrases people actually type into search. Jens adds three
+  hashtags by hand at posting: two general/wide ones plus `#pacevector` last.
+- TikTok video title (separate field from the description, bolded on
+  TikTok's photo-post composer): needs its own short line, 25–65 characters.
+  Not currently a distinct item in the morning packet — worth adding as its
+  own generated line rather than assuming the caption's first line fits the
+  limit.
+- Both: the ban list in `banned.md` applies without exception. The pipeline
+  never generates hashtags itself; every hashtag above is added by Jens
+  manually when posting in-app.
 
 ## Disclaimer
 
